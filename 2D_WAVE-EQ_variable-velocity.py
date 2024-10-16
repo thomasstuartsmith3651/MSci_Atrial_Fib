@@ -27,7 +27,7 @@ def I(x,y):
     two space variables depending function 
     that represent the wave form at t = 0
     """
-    return 0.2*np.exp(-((x-0.001)**2/(0.0001**2) + (y-0.001)**2/(0.0001**2)))
+    return 0.2*np.exp(-((x-0.001)**2/0.0000001 + (y-0.001)**2/0.0000001))
 
 def V(x,y):
     """
@@ -48,7 +48,7 @@ def celer(x,y):
     
 loop_exec = 1 # Processing loop execution flag
 
-bound_cond = 1  #Boundary cond 1 : Dirichlet, 2 : Neumann, 3 Mur
+bound_cond = 2  #Boundary cond 1 : Dirichlet, 2 : Neumann, 3 Mur
 
 if bound_cond not in [1,2,3]:
     loop_exec = 0
