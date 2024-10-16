@@ -130,17 +130,17 @@ def update(frame):
     ax3d.clear()
     ax3d.plot_surface(X, Y, frame, cmap='viridis')
     ax3d.set_zlim(0, 3)
-    ax3d.set_title("3D Surface of Potential (u)")
+    ax3d.set_title("3D Surface of Potential (V$_m$)")
     
     # Update 2D contour plot
     ax2d.clear()
     contour = ax2d.contourf(X, Y, frame, cmap='viridis')
-    ax2d.set_title("2D Contour of Potential (u)")
+    ax2d.set_title("2D Contour of Potential (V$_m$)")
     return contour
 
 # Save animation as .mp4 file
 ani = FuncAnimation(fig, update, frames=frames, interval=50)
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Simulation'), bitrate=500)
-ani.save('AP_HeteroSpiral_Stimulus_Short.mp4', writer=writer)
+ani.save('AP_HeteroSpiral_Stimulus_Euler.mp4', writer=writer)
 
 plt.close(fig)
