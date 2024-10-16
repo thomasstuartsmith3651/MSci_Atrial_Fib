@@ -113,7 +113,7 @@ def update(frame):
 
 # Save animation as .mp4 file
 ani = FuncAnimation(fig, update, frames=frames, interval=50)
-writer = FFMpegWriter(fps=15, metadata=dict(artist='Simulation'), bitrate=1800)
+writer = FFMpegWriter(fps=15, metadata=dict(artist='Simulation'), bitrate=500)
 ani.save('AP_2D_Spiral.mp4', writer=writer)
 
 plt.close(fig)

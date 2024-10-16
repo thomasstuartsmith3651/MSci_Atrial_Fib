@@ -71,7 +71,7 @@ def anim_1D(x,y, pas_de_temps, pas_d_images, save = False, myxlim = (0, 4) , myy
     # animation function.  This is called sequentially
     def animate(i):
         line.set_data(x, y[:,pas_d_images*i])
-        ax.set_title("$u(x)$ à t = {} s".format(np.round(i*pas_d_images*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
+        ax.set_title("$u(x)$ at t = {} s".format(np.round(i*pas_d_images*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
         return line,
         
     # call the animator.  blit=True means only re-draw the parts that have changed.
@@ -109,7 +109,7 @@ def anim_2D(X, Y, L, pas_de_temps, pas_d_images, save = False, myzlim = (-0.15, 
         ax.set_xlabel("x [m]", fontname = "serif", fontsize = 14)
         ax.set_ylabel("y [m]", fontname = "serif", fontsize = 14)
         ax.set_zlabel("$u$ [m]", fontname = "serif", fontsize = 16)
-        ax.set_title("$u(x,y)$ à t = {} s".format(np.round(pas_d_images*num*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
+        ax.set_title("$u(x,y)$ at t = {} s".format(np.round(pas_d_images*num*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
         ax.set_zlim(myzlim[0], myzlim[1])
         plt.tight_layout()
         return surf,
@@ -147,7 +147,7 @@ def anim_2D_flat(X, Y, L, pas_de_temps, pas_d_images, save = False,  myzlim = (-
     # Update function
     def update_surf(num):
         # print("L shape: ", L.shape) ; print("mesh.set_array shape: ", L[:,:,pas_d_images*num][:-1, :-1].shape)
-        ax.set_title("$u(x,y)$ à t = {} s".format(np.round(num*pas_d_images*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
+        ax.set_title("$u(x,y)$ at t = {} s".format(np.round(num*pas_d_images*pas_de_temps, 4)), fontname = "serif", fontsize = 16)
         mesh.set_array(L[:,:,pas_d_images*num].flatten())
         return mesh,
 

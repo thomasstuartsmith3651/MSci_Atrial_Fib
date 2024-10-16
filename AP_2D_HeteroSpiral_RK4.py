@@ -1,6 +1,6 @@
 """
 - Numerically solve the monodomain Aliev Panfilov model used in EP-PINNS paper with the same parameter values.
-- Uses the Euler Method.
+- Uses RK4 method. 
 - Generate a spiral wave with heterogeneity.
 - Output animations.
 - Code adapted from Matlab to Python.  
@@ -65,12 +65,38 @@ def apply_stimuli(u, t, dt):
     for stim_time in stimulus_times:
         if stim_time <= t < stim_time + stimulus_duration:
             for (i, j) in stimulus_positions:
-                u[i-1:i+1, j-1:j+1] += stimulus_amplitude  # u[i-1:i+2, j-1:j+2] += stimulus_amplitude
+                u[i-1:i+2, j-1:j+2] += stimulus_amplitude
 
-# Runge-Kutta integration for the simulation
-def runge_kutta_step(u, v, t):
+# RK4 Step Function
+def rk4_step(f, u, v, laplacian, dt):
+    k1_u, k1_v = f(u, v, laplacian)
+    k2_u, k2_v = f(u + 0.5*dt*k1_u, v + 0.5*dt*k1_v, laplacian)
+    k3_u, k3_v = f(u + 0.5*dt*k2_u, v + 0.5*dt*k2_v, laplacian)
+    k4_u, k4_v = f(u + dt*k3_u, v + dt*k3_v, laplacian)
+    
+    u_next = u + (dt/6) * (k1_u + 2*k2_u + 2*k3_u + k4_u)
+    v_next = v + (dt/6) * (k1_v + 2*k2_v + 2*k3_v + k4_v)
+    
+    return u_next, v_next
+
+# System function for the Aliev-Panfilov model
+def aliev_panfilov_system(u, v, laplacian):
+    du_dt = (
+        laplacian + k * u * (u - a) * (1 - u) - u * v
+    )
+    dv_dt = (
+        epsilon(u, v) * (-v - k * u * (u - b - 1))
+    )
+    return du_dt, dv_dt
+
+# Simulation loop with 4th-order Runge-Kutta
+frames = []
+for step in range(time_steps):
+    t = step * dt
+    
     u_old, v_old = u.copy(), v.copy()
     
+    # Compute Laplacian with variable diffusion D
     laplacian = (
         D[1:-1, 1:-1] * (
             u_old[:-2, 1:-1] + u_old[2:, 1:-1] + 
@@ -79,68 +105,43 @@ def runge_kutta_step(u, v, t):
         ) / (dx**2)
     )
     
-    du_dt = (
-        laplacian + k * u_old[1:-1, 1:-1] * 
-        (u_old[1:-1, 1:-1] - a) * (1 - u_old[1:-1, 1:-1]) - 
-        u_old[1:-1, 1:-1] * v_old[1:-1, 1:-1]
-    )
+    # Perform RK4 step
+    u_next, v_next = rk4_step(lambda u, v, lap: aliev_panfilov_system(u, v, lap), 
+                              u_old[1:-1, 1:-1], v_old[1:-1, 1:-1], laplacian, dt)
     
-    dv_dt = (
-        epsilon(u_old[1:-1, 1:-1], v_old[1:-1, 1:-1]) *
-        (-v_old[1:-1, 1:-1] - k * u_old[1:-1, 1:-1] * 
-        (u_old[1:-1, 1:-1] - b - 1))
-    )
+    # Update u and v arrays
+    u[1:-1, 1:-1] = u_next
+    v[1:-1, 1:-1] = v_next
 
-    u[1:-1, 1:-1] += dt * du_dt
-    v[1:-1, 1:-1] += dt * dv_dt
-    
     apply_periodic_boundary(u)
     apply_periodic_boundary(v)
-
-    # Apply external stimuli if within stimulus time
     apply_stimuli(u, t, dt)
 
-# Store frames for the animation
-frames = []
-
-for step in range(time_steps):
-    t = step * dt
-    runge_kutta_step(u, v, t)
-    
     # Save frames for animation every 50 steps
     if step % 50 == 0:
         frames.append(u.copy())
 
-# Create plot layout for 3D and 2D contour animations
+# Animation setup (same as before)
 fig = plt.figure(figsize=(12, 6))
-
-# 3D plot setup
 ax3d = fig.add_subplot(121, projection='3d')
 X, Y = np.meshgrid(np.arange(nx), np.arange(ny))
-
-# 2D contour plot setup
 ax2d = fig.add_subplot(122)
 contour = ax2d.contourf(X, Y, frames[0], cmap='viridis')
 plt.colorbar(contour, ax=ax2d)
 ax2d.set_title("2D Contour of Potential (u)")
 
-# Update function for animation
 def update(frame):
-    # Update 3D plot
     ax3d.clear()
     ax3d.plot_surface(X, Y, frame, cmap='viridis')
-    ax3d.set_zlim(0, 3)
+    ax3d.set_zlim(0, 1)
     ax3d.set_title("3D Surface of Potential (u)")
-    
-    # Update 2D contour plot
     ax2d.clear()
     contour = ax2d.contourf(X, Y, frame, cmap='viridis')
     ax2d.set_title("2D Contour of Potential (u)")
     return contour
 
-# Save animation as .mp4 file
 ani = FuncAnimation(fig, update, frames=frames, interval=50)
 writer = FFMpegWriter(fps=15, metadata=dict(artist='Simulation'), bitrate=500)
-ani.save('AP_HeteroSpiral_Stimulus_Short.mp4', writer=writer)
+ani.save('AP_HeteroSpiral_Stimulus_RK4.mp4', writer=writer)
 
 plt.close(fig)
