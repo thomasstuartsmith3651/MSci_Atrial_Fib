@@ -21,7 +21,7 @@ mu1 = 0.2
 mu2 = 0.3
 
 # Grid and time parameters
-nx, ny = 500, 500  # Grid size - 50 mm x 50 mm
+nx, ny = 500, 500  # Grid size - 50 mm x 50 mm # for 6mm x 6mm, use 60, 60 --> 600 x 600 mesh.
 dx = 0.1           # Space step (mm) - spatial cell size 
 dt = 0.01          # Time step (s)
 tfin = 100.0         # Simulation end time (s)
