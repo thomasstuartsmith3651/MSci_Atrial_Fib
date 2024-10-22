@@ -6,6 +6,7 @@
 - Code adapted from Matlab to Python.  
 """
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, FFMpegWriter
@@ -21,14 +22,14 @@ mu1 = 0.2
 mu2 = 0.3
 
 # Grid and time parameters
-nx, ny = 500, 500  # Grid size - 50 mm x 50 mm
+nx, ny = 60, 60  # Grid size - 50 mm x 50 mm (500 x 500). # for 6mm x 6mm, use 60, 60 --> 600 x 600 mesh.
 dx = 0.1           # Space step (mm) - spatial cell size 
 dt = 0.01          # Time step (s)
 tfin = 100.0         # Simulation end time (s)
 time_steps = int(tfin / dt)  # Number of time steps
 
 # Stimulus parameters
-stimulus_positions = [(200, 200)] # [(10, 10), (80, 80)] # Example positions for stimuli
+stimulus_positions = [(20, 20)] # [(10, 10), (80, 80)] # Example positions for stimuli
 stimulus_times = [0.5]  # [0.5, 2.0] # Stimuli applied at these seconds
 stimulus_duration = 0.01  # Duration of each stimulus
 stimulus_amplitude = 1.0  # Strength of the stimulus
@@ -67,8 +68,9 @@ def apply_stimuli(u, t, dt):
             for (i, j) in stimulus_positions:
                 u[i-1:i+1, j-1:j+1] += stimulus_amplitude  # u[i-1:i+2, j-1:j+2] += stimulus_amplitude
 
+all_u_at_t = []
 # Runge-Kutta integration for the simulation
-def runge_kutta_step(u, v, t):
+def runge_kutta_step(u, v, t, periodic = False):
     u_old, v_old = u.copy(), v.copy()
     
     laplacian = (
@@ -94,11 +96,17 @@ def runge_kutta_step(u, v, t):
     u[1:-1, 1:-1] += dt * du_dt
     v[1:-1, 1:-1] += dt * dv_dt
     
-    apply_periodic_boundary(u)
-    apply_periodic_boundary(v)
-
+    if periodic == True:
+        apply_periodic_boundary(u)
+        apply_periodic_boundary(v)
+    
     # Apply external stimuli if within stimulus time
     apply_stimuli(u, t, dt)
+    
+    # Store current u values at every 1 time step --> 100 rows.
+    if t % 0.1 == 0:
+        u_flat = u.flatten()
+        all_u_at_t.append([t] + u_flat.tolist())
 
 # Store frames for the animation
 frames = []
@@ -110,6 +118,11 @@ for step in range(time_steps):
     # Save frames for animation every 50 steps
     if step % 50 == 0:
         frames.append(u.copy())
+
+# Create a DataFrame with columns for time and u values for each spatial point
+columns = ['Time'] + [f'u_{i}_{j}' for i in range(nx) for j in range(ny)]
+u_df = pd.DataFrame(all_u_at_t, columns = columns)
+u_df.to_csv('all_u_at_t_Euler.csv', index=False)  # Save to CSV file
 
 # Create plot layout for 3D and 2D contour animations
 fig = plt.figure(figsize=(12, 6))

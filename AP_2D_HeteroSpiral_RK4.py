@@ -6,6 +6,7 @@
 - Code adapted from Matlab to Python.  
 """
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, FFMpegWriter
@@ -89,6 +90,8 @@ def aliev_panfilov_system(u, v, laplacian):
     )
     return du_dt, dv_dt
 
+# u_t_all = []
+
 # Simulation loop with 4th-order Runge-Kutta
 frames = []
 for step in range(time_steps):
@@ -113,13 +116,22 @@ for step in range(time_steps):
     u[1:-1, 1:-1] = u_next
     v[1:-1, 1:-1] = v_next
 
-    apply_periodic_boundary(u)
-    apply_periodic_boundary(v)
+    # apply_periodic_boundary(u)
+    # apply_periodic_boundary(v)
     apply_stimuli(u, t, dt)
+
+    # Store current u values and time step.
+    # u_flat = u.flatten() 
+    # u_t_all.append([t] + u_flat.tolist())
 
     # Save frames for animation every 50 steps
     if step % 50 == 0:
         frames.append(u.copy())
+
+# Create a DataFrame with columns for time and u values for each spatial point
+# columns = ['Time'] + [f'u_{i}_{j}' for i in range(nx) for j in range(ny)]
+# u_df = pd.DataFrame(u_t_all, columns = columns)
+# u_df.to_csv('u_values_over_time.csv', index=False)  # Save to CSV file
 
 # Animation setup (same as before)
 fig = plt.figure(figsize=(12, 6))
