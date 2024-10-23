@@ -5,6 +5,7 @@
 - Output animations.
 - Code adapted from Matlab to Python.  
 """
+#%%
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -157,3 +158,5 @@ writer = FFMpegWriter(fps=15, metadata=dict(artist='Simulation'), bitrate=500)
 ani.save('AP_HeteroSpiral_Stimulus_Euler.mp4', writer=writer)
 
 plt.close(fig)
+
+# %%
