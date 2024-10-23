@@ -161,3 +161,4 @@ class Animate(loadData):
         else:
             plot = plot_ith_Frame(self, self.ind) #plot graph at specific point in time
             
+# %%
