@@ -156,7 +156,7 @@ class Animate(loadData):
             return plot
         
         if self.animate:
-            for i in range(0, len(self.time)):
+            for i in range(len(self.time)):
                 plot = plot_ith_Frame(self, i)
                 pl.pause(1e-8)
                 plot.remove()
