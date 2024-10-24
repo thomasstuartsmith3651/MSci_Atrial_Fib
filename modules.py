@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
 import pylab as pl
 import mpl_toolkits.mplot3d.art3d as art3d
-from matplotlib.animation import FuncAnimation
 from joblib import Parallel, delayed
 
 #%%
