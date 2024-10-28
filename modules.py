@@ -9,11 +9,13 @@ Created on Fri Oct 11 15:14:05 2024
 import numpy as np
 import pandas as pd
 import scipy.interpolate as spi
+from joblib import Parallel, delayed
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
 import pylab as pl
 import mpl_toolkits.mplot3d.art3d as art3d
-from joblib import Parallel, delayed
+from matplotlib.animation import FuncAnimation
 
 #%%
 
@@ -117,7 +119,7 @@ class loadData:
         return data_frame
 
 class Animate(loadData):
-    def __init__(self, data, n, dataframe, ind, ele_radius, animate = False): #create template for figure and mesh grid
+    def __init__(self, data, n, dataframe, ind, ele_radius, animate=False): #create template for figure and mesh grid
         loadData.__init__(self, data, n)
         
         self.df = dataframe
@@ -127,38 +129,42 @@ class Animate(loadData):
         
         self.X, self.Y = self.df.loc["X"].to_numpy(), self.df.loc["Y"].to_numpy()
         
-        self.fig = pl.figure()
-        self.ax = self.fig.add_subplot(projection = '3d')
-        self.ax.axes.set_zlim3d(bottom = self.signals.min().min(), top = self.signals.max().max())  #scale needs to be consistent each frame
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(projection='3d')
+        self.ax.set_zlim(self.signals.min().min(), self.signals.max().max())  # consistent scale across frames
         
         self.electrodes = []
-        
         for cX, cY in self.coord:
-            ele = RegularPolygon((cX, cY), numVertices = 5, radius = self.ele_radius, color = 'blue')
+            ele = RegularPolygon((cX, cY), numVertices=5, radius=self.ele_radius, color='blue')
             self.ax.add_patch(ele)
-            art3d.pathpatch_2d_to_3d(ele, z = 0, zdir = 'z') #initial z position is 0, update later
+            art3d.pathpatch_2d_to_3d(ele, z=0, zdir='z')  # initial z position is 0, update later
             self.electrodes.append(ele)
-    
-    def run(self): #runs the animation or returns frame in animation at time with index = ind
-        def plot_ith_Frame(self, ind): #plots ith frame
-            signal = self.signals.iloc[ind, :].to_numpy()
-            Z = self.df.loc[self.time[ind]].to_numpy()
-            plot = self.ax.plot_surface(self.X, self.Y, Z, alpha = 0.2, fc = 'w', ec = 'k', shade = False) #plot surface
-            for i, ele in enumerate(self.electrodes): #update vertical position of all electrodes
-                ele._segment3d = [(x, y, signal[i]) for x, y, _ in ele._segment3d]
-            
-            self.ax.set_title('t = %0.3e s'%self.time[ind])
-            self.ax.set_xlabel('x-position (mm)')
-            self.ax.set_ylabel('y-position (mm)')
-            self.ax.set_zlabel('voltage (mV)')
-            plt.show()
-            return plot
         
+        self.surface_plot = None #initialise the surface plot variable for removal
+    
+    def plot_ith_frame(self, ind):
+        if self.surface_plot is not None: #remove the previous surface plot if it exists
+            self.surface_plot.remove()
+        
+        signal = self.signals.iloc[ind, :].to_numpy()
+        Z = self.df.loc[self.time[ind]].to_numpy()
+
+        self.surface_plot = self.ax.plot_surface(self.X, self.Y, Z, alpha=0.2, fc='w', ec='k', shade=False)
+        
+        for i, ele in enumerate(self.electrodes): #update vertical position of all electrodes
+            ele._segment3d = [(x, y, signal[i]) for x, y, _ in ele._segment3d]
+        
+        self.ax.set_title(f't = {self.time[ind]:.3e} s') #label the signal in terms of time
+        self.ax.set_xlabel('x-position (mm)')
+        self.ax.set_ylabel('y-position (mm)')
+        self.ax.set_zlabel('voltage (mV)')
+
+    def run(self): 
         if self.animate:
-            for i in range(len(self.time)):
-                plot = plot_ith_Frame(self, i)
-                pl.pause(1e-8)
-                plot.remove()
+            self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.time), interval = 10)
+            plt.show()
         else:
-            plot = plot_ith_Frame(self, self.ind) #plot graph at specific point in time
+            self.plot_ith_frame(self.ind)
+            plt.show()
+
 
