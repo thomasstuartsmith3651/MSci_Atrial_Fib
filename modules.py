@@ -13,7 +13,6 @@ from joblib import Parallel, delayed
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
-import pylab as pl
 import mpl_toolkits.mplot3d.art3d as art3d
 from matplotlib.animation import FuncAnimation
 
@@ -142,9 +141,9 @@ class Animate(loadData):
 
         self.surface_plot = None #initialise surface plot variable
         
-        self.frame_data = self.precompute_frames() #precompute frame data in parallel and assign it to self.frame_data
+        self.frame_data = self.precomputeFrames() #precompute frame data in parallel and assign it to self.frame_data
 
-    def compute_frame_data(self, ind):
+    def computeFrameData(self, ind):
         """ 
         Compute data for a specific frame
         """
@@ -152,11 +151,11 @@ class Animate(loadData):
         Z = self.df.loc[self.time[ind]].to_numpy()
         return signal, Z
 
-    def precompute_frames(self):
+    def precomputeFrames(self):
         """ 
         Precompute all frame data in parallel using joblib to speed up animation process
         """
-        frame_data = Parallel(n_jobs = -1)(delayed(self.compute_frame_data)(i) for i in range(len(self.time)))
+        frame_data = Parallel(n_jobs = -1)(delayed(self.computeFrameData)(i) for i in range(len(self.time)))
         return frame_data
 
     def plot_ith_frame(self, ind):
