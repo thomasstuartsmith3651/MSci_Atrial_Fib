@@ -107,19 +107,19 @@ class loadData:
             df_keys = ["X", "Y"] #create list of keys to call concatenated dataframes
 
             # Use parallelism to speed up interpolation across time steps
-            results = Parallel(n_jobs=-1)(delayed(interpolateSignal)(signal_arr, coord_pairs, Xarr, Yarr, i) for i in range(len(time_arr))) #get the interpolated signal dataframes over all time
+            results = Parallel(n_jobs = -1)(delayed(interpolateSignal)(signal_arr, coord_pairs, Xarr, Yarr, i) for i in range(len(time_arr))) #get the interpolated signal dataframes over all time
 
             df_list.extend(results) #add the signal dataframes to the dataframe list for concatenation
             df_keys.extend(time_arr) #add the times to the list of keys for concatenation
 
-            df = pd.concat(df_list, axis=0, keys=df_keys) #concatenate all the X, Y, and Z dataframes at different times and label them by the time
+            df = pd.concat(df_list, axis = 0, keys = df_keys) #concatenate all the X, Y, and Z dataframes at different times and label them by the time
             return df
         
         data_frame = interpolatedDataFrame(self, self.x_pos, self.y_pos, self.coord, self.signals, self.time)
         return data_frame
 
 class Animate(loadData):
-    def __init__(self, data, n, dataframe, ind, ele_radius, animate=False): #create template for figure and mesh grid
+    def __init__(self, data, n, dataframe, ind, ele_radius, animate = False):
         loadData.__init__(self, data, n)
         
         self.df = dataframe
@@ -128,43 +128,57 @@ class Animate(loadData):
         self.animate = animate
         
         self.X, self.Y = self.df.loc["X"].to_numpy(), self.df.loc["Y"].to_numpy()
-        
+
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(projection='3d')
-        self.ax.set_zlim(self.signals.min().min(), self.signals.max().max())  # consistent scale across frames
-        
-        self.electrodes = []
+        self.ax.set_zlim(self.signals.min().min(), self.signals.max().max())
+
+        self.electrodes = [] #create electrode patches
         for cX, cY in self.coord:
-            ele = RegularPolygon((cX, cY), numVertices=5, radius=self.ele_radius, color='blue')
+            ele = RegularPolygon((cX, cY), numVertices = 5, radius = self.ele_radius, color = 'blue')
             self.ax.add_patch(ele)
-            art3d.pathpatch_2d_to_3d(ele, z=0, zdir='z')  # initial z position is 0, update later
+            art3d.pathpatch_2d_to_3d(ele, z = 0, zdir = 'z')
             self.electrodes.append(ele)
+
+        self.surface_plot = None #initialise surface plot variable
         
-        self.surface_plot = None #initialise the surface plot variable for removal
-    
+        self.frame_data = self.precompute_frames() #precompute frame data in parallel and assign it to self.frame_data
+
+    def compute_frame_data(self, ind):
+        """ 
+        Compute data for a specific frame
+        """
+        signal = self.signals.iloc[ind, :].to_numpy()
+        Z = self.df.loc[self.time[ind]].to_numpy()
+        return signal, Z
+
+    def precompute_frames(self):
+        """ 
+        Precompute all frame data in parallel using joblib to speed up animation process
+        """
+        frame_data = Parallel(n_jobs = -1)(delayed(self.compute_frame_data)(i) for i in range(len(self.time)))
+        return frame_data
+
     def plot_ith_frame(self, ind):
         if self.surface_plot is not None: #remove the previous surface plot if it exists
             self.surface_plot.remove()
-        
-        signal = self.signals.iloc[ind, :].to_numpy()
-        Z = self.df.loc[self.time[ind]].to_numpy()
 
-        self.surface_plot = self.ax.plot_surface(self.X, self.Y, Z, alpha=0.2, fc='w', ec='k', shade=False)
-        
+        signal, Z = self.frame_data[ind] #get precomputed data
+
+        self.surface_plot = self.ax.plot_surface(self.X, self.Y, Z, alpha=0.2, fc='w', ec='k', shade=False) #plot new signal
+
         for i, ele in enumerate(self.electrodes): #update vertical position of all electrodes
             ele._segment3d = [(x, y, signal[i]) for x, y, _ in ele._segment3d]
-        
-        self.ax.set_title(f't = {self.time[ind]:.3e} s') #label the signal in terms of time
+
+        self.ax.set_title(f't = {self.time[ind]:.3e} s') #graph title is the timestamp of the data
         self.ax.set_xlabel('x-position (mm)')
         self.ax.set_ylabel('y-position (mm)')
         self.ax.set_zlabel('voltage (mV)')
 
-    def run(self): 
-        if self.animate:
-            self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.time), interval = 10)
+    def run(self):
+        if self.animate: #run animation
+            self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.frame_data), interval = 1)
             plt.show()
-        else:
+        else: #plot single frame at specified index
             self.plot_ith_frame(self.ind)
             plt.show()
-
-
