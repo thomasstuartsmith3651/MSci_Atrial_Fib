@@ -176,7 +176,7 @@ class Animate(loadData):
 
     def run(self):
         if self.animate: #run animation
-            self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.frame_data), interval = 1)
+            self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.frame_data), interval = 1, repeat = False)
             plt.show()
         else: #plot single frame at specified index
             self.plot_ith_frame(self.ind)

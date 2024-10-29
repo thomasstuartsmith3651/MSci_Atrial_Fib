@@ -7,7 +7,10 @@ Created on Fri Oct 11 20:02:20 2024
 """
 
 import time
-
+import pandas as pd
+import numpy as np
+from scipy import integrate
+import matplotlib.pyplot as plt
 from modules import *
 
 data = "ElectrogramData.xlsx"
@@ -25,8 +28,18 @@ print("time take (new)", end - start)
 
 #%%
 
-print(df)
+# Loading data (assuming loadData is a defined function)
+L = loadData(data, n=600)
 
+# Getting time data and electrode signals
+t = L.time_data()  # Assumes this returns a 1D array or Series for time values
+Z = L.ele_signals().transpose().iloc[0].to_numpy()  # Extracts the first row as a 1D array
+
+plt.plot(t, Z)
+plt.title("Signal vs Time Graph of Electrode at (0,0)")
+plt.xlabel("Time")
+plt.ylabel("Electrode Signal")
+plt.show()
 #%%
 
 start = time.time()
