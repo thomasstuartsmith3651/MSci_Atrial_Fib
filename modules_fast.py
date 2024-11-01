@@ -29,7 +29,7 @@ from matplotlib.animation import FuncAnimation, FFMpegWriter, PillowWriter
 #class
 
 class loadData:
-    def __init__(self, data, n): #input name of excel file
+    def __init__(self, data, n, cpu_num): #input name of excel file
         def electrodeData(self, data):
             """
             This function loads the excel file and extracts the following data:
@@ -49,8 +49,9 @@ class loadData:
             t_interval = 1/2034.5 #sampling frequency is 2034.5 Hz
             time = np.arange(0, signals.shape[0] * t_interval, t_interval)
             return x, y, coord, signals, time
-
+        
         self.n = n
+        self.cpu_num = cpu_num
         self.x_pos, self.y_pos, self.coord, self.signals, self.time = electrodeData(self, data)
     
     def x_position(self):
@@ -114,7 +115,7 @@ class loadData:
             df_keys = ["X", "Y"] #create list of keys to call concatenated dataframes
 
             # Use parallelism to speed up interpolation across time steps
-            results = Parallel(n_jobs = -1)(delayed(interpolateSignal)(signal_arr, coord_pairs, Xarr, Yarr, i) for i in range(len(time_arr))) #get the interpolated signal dataframes over all time
+            results = Parallel(n_jobs = self.cpu_num)(delayed(interpolateSignal)(signal_arr, coord_pairs, Xarr, Yarr, i) for i in range(len(time_arr))) #get the interpolated signal dataframes over all time
 
             df_list.extend(results) #add the signal dataframes to the dataframe list for concatenation
             df_keys.extend(time_arr) #add the times to the list of keys for concatenation
@@ -126,7 +127,7 @@ class loadData:
         return data_frame
 
 class Animate(loadData):
-    def __init__(self, data, n, dataframe, ind, ele_radius, animate = False):
+    def __init__(self, data, n, cpu_num, dataframe, ind, ele_radius, animate = False):
         loadData.__init__(self, data, n)
         
         self.df = dataframe
@@ -163,7 +164,7 @@ class Animate(loadData):
         """ 
         Precompute all frame data in parallel using joblib to speed up animation process
         """
-        frame_data = Parallel(n_jobs = -1)(delayed(self.computeFrameData)(i) for i in range(len(self.time)))
+        frame_data = Parallel(n_jobs = self.cpu_num)(delayed(self.computeFrameData)(i) for i in range(len(self.time)))
         return frame_data
 
     def plot_ith_frame(self, ind):
