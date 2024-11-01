@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation, FFMpegWriter
+from numba import jit, prange
 
 # Aliev-Panfilov model parameters
 D0 = 0.05  # Base diffusion coefficient

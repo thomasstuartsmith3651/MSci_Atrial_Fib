@@ -14,7 +14,7 @@ from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
 import mpl_toolkits.mplot3d.art3d as art3d
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 #%%
 
@@ -177,7 +177,8 @@ class Animate(loadData):
     def run(self):
         if self.animate: #run animation
             self.anim = FuncAnimation(self.fig, self.plot_ith_frame, frames = len(self.frame_data), interval = 1, repeat = False)
-            plt.show()
+            writer = FFMpegWriter(fps=15, metadata={'artist': 'Me'}, bitrate=500)
+            self.anim.save("data.mp4", writer=writer)
         else: #plot single frame at specified index
             self.plot_ith_frame(self.ind)
             plt.show()
