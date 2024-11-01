@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Created on Fri Nov  1 12:53:03 2024
+
+@author: candace_chung
+"""
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
 Created on Fri Oct 11 15:14:05 2024
 
 @author: candace_chung
