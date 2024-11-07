@@ -1,0 +1,10 @@
+filename = "testAF1_2024_10_23_10_48_32.mat";
+sinterval = 1/2034.5;
+pinterval = 1/101.7250;
+obj = LoadDataMatLab(filename, pinterval, sinterval);
+X = obj.XCoordArray;
+Y = obj.YCoordArray;
+Z = obj.ZCoordArray;
+PT = obj.PosTimeArray;
+S = obj.SignalArray;
+ST = obj.SignalTimeArray;
