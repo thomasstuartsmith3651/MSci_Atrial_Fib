@@ -2,6 +2,7 @@ classdef LoadDataMatLab
     properties
         %insert properties of class
         MatLabFileName
+        SignalType
         PositionIndex
         SignalIndex
         PosVarPathName
@@ -18,17 +19,19 @@ classdef LoadDataMatLab
     
     methods
         %initialisation if the formats are consistent
-        function obj = LoadDataMatLab(MatLabFileName, PositionSamplingInterval, SignalSamplingInterval)
+        function obj = LoadDataMatLab(MatLabFileName, SignalType, PositionSamplingInterval, SignalSamplingInterval)
             %defining matlab file name
             obj.MatLabFileName = load(MatLabFileName);
+            %define signal type to be loaded
+            obj.SignalType = SignalType;
             %finds row index of position data where the electrode name is "HD"
             obj.PositionIndex = find(strcmp({obj.MatLabFileName.userdata.locations.catheters.name}, "HD"));
             %finds tensor of "HD" electrode locations
             obj.PosVarPathName = obj.MatLabFileName.userdata.locations.catheters(obj.PositionIndex).egms;
-            %finds row index of unipolar raw data where the electrode name is "HD"
-            obj.SignalIndex = find(strcmp({obj.MatLabFileName.userdata.epcath_uni_raw.catheters.name}, "HD"));
+            %finds row index of desired signal where the electrode name is "HD"
+            obj.SignalIndex = find(strcmp({obj.MatLabFileName.userdata.(obj.SignalType).catheters.name}, "HD"));
             %finds 2D array of "HD" electrode signals
-            obj.SigVarPathName = obj.MatLabFileName.userdata.epcath_uni_raw.catheters(obj.SignalIndex).egms; %calls unipolar raw data
+            obj.SigVarPathName = obj.MatLabFileName.userdata.(obj.SignalType).catheters(obj.SignalIndex).egms; %calls unipolar raw data
             %defining position and signal sampling time intervals
             obj.PositionSamplingInterval = PositionSamplingInterval;
             obj.SignalSamplingInterval = SignalSamplingInterval;
