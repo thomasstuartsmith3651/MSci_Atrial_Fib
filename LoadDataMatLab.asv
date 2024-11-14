@@ -45,8 +45,7 @@ classdef LoadDataMatLab
         %read var
         function [xArr, yArr, zArr, posTimeArr, sigArr, sigTimeArr] = readDataMatLab(obj)
             %signal table of each electrode: column = electrode number
-            sigVar = obj.SigVarPathName;
-            sigArr = sigVar(:,1:16);
+            sigArr = obj.SigVarPathName;
             %position table of each electrode
             posArr = obj.PosVarPathName;
             %x array of each electrode: row = time, column = electrode number
@@ -69,9 +68,8 @@ classdef LoadDataMatLab
             Y = obj.YCoordArray;
             Z = obj.ZCoordArray;
             pT = obj.PosTimeArray;
-            S = obj.SignalArray;
-            sT = obj.SignalTimeArray;
-            save(obj.OutputFileName, "X", "Y", "Z", "S", "pT", "sT");
+            S = 
+            save(obj.OutputFileName, "", "", "", "", "obj.SignalArray", "obj.SignalTimeArray");
         end
     end
 end
