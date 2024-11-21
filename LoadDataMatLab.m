@@ -3,7 +3,9 @@ classdef LoadDataMatLab
         %insert properties of class
         MatLabFileName
         PositionSamplingInterval
+        PositionSamplingFreq
         SignalSamplingInterval
+        SignalSamplingFreq
         OutputFileName
         SignalType
         PositionIndex
@@ -36,6 +38,8 @@ classdef LoadDataMatLab
             %defining position and signal sampling time intervals
             obj.PositionSamplingInterval = PositionSamplingInterval;
             obj.SignalSamplingInterval = SignalSamplingInterval;
+            obj.PositionSamplingFreq = obj.MatLabFileName.userdata.locations.sampleFreq;
+            obj.SignalSamplingFreq = obj.MatLabFileName.userdata.(obj.SignalType).sampleFreq;
             %calculating arrays
             [obj.XCoordArray, obj.YCoordArray, obj.ZCoordArray, obj.PosTimeArray, obj.SignalArray, obj.SignalTimeArray] = readDataMatLab(obj);
             %file name for outputted .mat file
@@ -68,10 +72,24 @@ classdef LoadDataMatLab
             X = obj.XCoordArray;
             Y = obj.YCoordArray;
             Z = obj.ZCoordArray;
-            pT = obj.PosTimeArray;
             S = obj.SignalArray;
+            pT = obj.PosTimeArray;
+            pF = obj.PositionSamplingFreq;
             sT = obj.SignalTimeArray;
-            save(obj.OutputFileName, "X", "Y", "Z", "S", "pT", "sT");
+            sF = obj.SignalSamplingFreq;
+            save(obj.OutputFileName, "X", "Y", "Z", "S", "pT", "sT", "pF", "sF");
+        end
+
+        function saveDataExcel(obj)
+            filename = 'testAF1data.xlsx';
+            writematrix(obj.XCoordArray, filename, 'Sheet', 'X coordinates');
+            writematrix(obj.YCoordArray, filename, 'Sheet', 'Y coordinates');
+            writematrix(obj.ZCoordArray, filename, 'Sheet', 'Z coordinates');
+            writematrix(obj.SignalArray, filename, 'Sheet', 'Signals');
+            %writematrix(obj.PosTimeArray, filename, 'Sheet', 'Position time array');
+            %writematrix(obj.SignalTimeArray, filename, 'Sheet', 'Signal time array');
+            writematrix(obj.PositionSamplingFreq, filename, 'Sheet', 'Position Sampling Frequency');
+            writematrix(obj.SignalSamplingFreq, filename, 'Sheet', 'Signal Sampling Frequency');
         end
     end
 end

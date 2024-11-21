@@ -10,5 +10,7 @@ Z = obj.ZCoordArray;
 PT = obj.PosTimeArray;
 S = obj.SignalArray;
 ST = obj.SignalTimeArray;
+pF = obj.PositionSamplingFreq;
+sF = obj.SignalSamplingFreq;
 
-obj.saveDataMatLab()
+obj.saveDataExcel()
