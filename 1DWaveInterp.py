@@ -9,7 +9,7 @@ from matplotlib.animation import FuncAnimation, FFMpegWriter
 #%%
 # 1.1) Propagation of 1D wave equation with constant speed c.
 # Euler method
-#'''
+'''
 # Wave equation parameters
 L = 1.0            # Length of the domain
 nx = 100           # Number of spatial points
@@ -58,11 +58,11 @@ def update(frame):
 # Create animation
 ani = FuncAnimation(fig, update, frames=int(t_max / dt), blit=True, interval=20)
 plt.show()
-#'''
+'''
 # %%
 # 1.2) Propagation of 1D wave equation with constant speed varying in x -> c(x).
 # Euler method
-#'''
+'''
 # Wave equation parameters
 L = 5.0            # Length of the domain # 5.0
 nx = 500           # Number of spatial points # 200 (increasing nx solves most instability issues like noise and wave breaking, but make sure to increase L too).
@@ -138,11 +138,11 @@ def update(frame, periodic_BC):
 periodic_BC = True
 ani = FuncAnimation(fig, update, frames=int(t_max / dt), fargs=(periodic_BC,), blit=True, interval=20)
 plt.show()
-#'''
+'''
 # %%
 # 1.3) Propagation of 1D wave equation with constant speed varying in x -> c(t,x).
 # Euler method
-
+'''
 # Wave equation parameters
 L = 5.0            # Length of the domain # 5.0
 nx = 300           # Number of spatial points # 300
@@ -247,7 +247,7 @@ writer = FFMpegWriter(fps = 30, bitrate = 500, codec = "libx264", extra_args = [
         # writer = animation.FFMpegWriter(fps = 24, bitrate = 10000, codec = "libx264", extra_args = ["-pix_fmt", "yuv420p"])
 ani.save('ani_Euler_1D_ctx.mp4', writer=writer)
 plt.show()
-
+'''
 # %%
 ###### SEVERE INSTABILITY, BUNCH OF OVERFLOW ERRORS WITHIN RK4 METHOD. --> NEEDS FIXING. 
 
@@ -364,18 +364,16 @@ plt.show()
 
 # 1.3) Propagation of 2D wave equation with constant speed varying in x -> c(t,x,y).
 # Euler method
-
+#'''
 # Wave equation parameters
-L = 5.0             # Length of the domain
-nx, ny = 100, 100   # Number of spatial points in x and y directions
-dx = L / nx         # Spatial step in x
-dy = L / ny         # Spatial step in y
-t_max = 2.0         # Maximum simulation time
-dt = 0.005          # Time step
+L = 5.0                   # Length of the domain
+nx, ny = 100, 100         # Number of spatial points in x and y directions
+dx, dy = L / nx, L / ny   # Spatial step in x and y
+t_max = 2.0               # Maximum simulation time
+dt = 0.005                # Time step
 
 # Spatial grid
-x = np.linspace(-L/2, L/2, nx)
-y = np.linspace(-L/2, L/2, ny)
+x, y = np.linspace(-L/2, L/2, nx) , np.linspace(-L/2, L/2, ny)
 X, Y = np.meshgrid(x, y)
 
 # Define wave speed c(x, y, t)
@@ -391,8 +389,7 @@ def wave_speed(t, x, y):
 
 # Initial wave speed at t=0
 c = wave_speed(0, X, Y)
-alpha_x = c * dt / dx  # CFL number in x
-alpha_y = c * dt / dy  # CFL number in y
+alpha_x, alpha_y = c * dt / dx , c * dt / dy
 
 # Initialize wave field
 u = np.zeros((nx, ny))
@@ -400,21 +397,20 @@ u_new = np.zeros((nx, ny))
 u_old = np.zeros((nx, ny))
 
 # Initial condition: Gaussian pulse in the center
-u = np.exp(-50 * ((X - L / 5)**2 + (Y - L / 5)**2))
-u_old[:] = u
+u = np.exp(-50 * ((X - L / 5)**2 + (Y - L / 5)**2)) ; u_old[:] = u
 
 # Ensure CFL stability condition
 if np.any(alpha_x > 1) or np.any(alpha_y > 1):
-    raise ValueError("Stability condition not satisfied. Reduce dt or increase dx/dy.")
+    raise ValueError(
+        "Stability condition not satisfied. Reduce dt or increase dx,dy."
+        )
 
 # Prepare 3D visualization
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+fig = plt.figure(); ax = fig.add_subplot(111, projection='3d')
 surface = ax.plot_surface(X, Y, u, cmap="viridis")
 ax.set_zlim(-1.1, 1.1)
 ax.set_title("2D Wave Equation with Variable Wave Speed c(x, y, t)")
-ax.set_xlabel("x")
-ax.set_ylabel("y")
+ax.set_xlabel("x"); ax.set_ylabel("y")
 
 # Time tracking
 t = 0.0
@@ -426,8 +422,7 @@ def update(frame):
     # Current time
     t += dt
     c = wave_speed(t, X, Y)  # Update wave speed
-    alpha_x = c * dt / dx
-    alpha_y = c * dt / dy
+    alpha_x, alpha_y = c * dt / dx , c * dt / dy
 
     # Finite difference scheme for 2D wave equation
     for i in range(1, nx - 1):
@@ -446,24 +441,22 @@ def update(frame):
     u_new[:, -1] = u_new[:, 1]
 
     # Swap arrays
-    u_old[:, :] = u
-    u[:, :] = u_new
+    u_old[:, :] = u; u[:, :] = u_new
 
     # Update the surface plot
     ax.clear()
     ax.set_zlim(-0.5, 0.5)
     ax.set_title("2D Wave Equation with Variable Wave Speed c(x, y, t)")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xlabel("x"); ax.set_ylabel("y")
     surface = ax.plot_surface(X, Y, u, cmap="viridis")
     return surface,
 
 # Create animation
-ani = FuncAnimation(fig, update, frames=int(t_max / dt), interval=20, blit=False)
+ani = FuncAnimation(fig, update, frames = int(t_max / dt), interval = 20, blit = False)
 
 # Save animation as a video
-writer = FFMpegWriter(fps=30, bitrate=500, codec="libx264", extra_args=["-pix_fmt", "yuv420p"])
-ani.save('ani_Euler_2D_ctx.mp4', writer=writer)
+#writer = FFMpegWriter(fps=30, bitrate=500, codec="libx264", extra_args=["-pix_fmt", "yuv420p"])
+#ani.save('ani_Euler_2D_ctx.mp4', writer=writer)
 
 plt.show()
-
+#'''
