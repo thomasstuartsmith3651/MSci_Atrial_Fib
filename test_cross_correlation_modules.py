@@ -25,6 +25,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
 import mpl_toolkits.mplot3d.art3d as art3d
 from matplotlib.animation import FuncAnimation, FFMpegWriter, PillowWriter
+import pywt
+from scipy.stats import zscore
+from scipy.spatial import Voronoi, voronoi_plot_2d
+from scipy.spatial import Delaunay
 
 """
 For some reason my laptop can't find this file in my local directory so I need the line below to import the file.
@@ -52,7 +56,10 @@ class LoadDataExcel:
             signals = pd.read_excel(data, sheet_name = 0)
             signals = signals.transpose().to_numpy()
             
-            t_interval = 1/2034.5 #sampling frequency is 2034.5 Hz
+            #t_interval = 1/2034.5 #sampling frequency is 2034.5 Hz
+            """ FOR TESTING ONLY """
+            t_interval = 20/1000 #sampling frequency is 2034.5 Hz
+            """ FOR TESTING ONLY """
             time = np.arange(0, signals.shape[1] * t_interval, t_interval)
             return x, y, coord, signals, time
         
@@ -95,18 +102,73 @@ class LoadDataExcel:
 class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
     def __init__(self, fileName): #velocity in mm/s angles in radians
         LoadDataExcel.__init__(self, fileName)
-        self.sigSampFreq = 2034.5 #units of Hz
+        
+        """ FOR DATA """
+        #self.sigSampFreq = 2034.5 #units of Hz
+        """ FOR DATA """
+        
+        """ FOR TESTING ONLY """
+        self.sigSampFreq = 1000/20 
+        """ FOR TESTING ONLY """
         self.sigSampInterval = 1/self.sigSampFreq
         #self.minVelocity, self.maxVelocity = velocityRange[0], velocityRange[1]
         #self.minAngle, self.maxAngle = angleRange[0], angleRange[1]
+    
+    def findEGMPeak(self, e1, window_length = 407, height_threshold = 0.5, distance_threshold = 300):
+        """
+        This function finds the peaks in the EGM signal and outputs indices to apply the kaiser window
+        Input:
+        - e1 = time series for first electrode
+        - window_length = index length of window
+        - height_threshold = minimum signal height to identify peak
+        - distance_threshold = minimum peak separation for it to be counted
         
-    def simpleCorrelate(self, ele_num1, ele_num2, corr_mode):
+        Output: 
+        - ind_shifts = indices to apply kaiser window so it's centred around the peaks
+        
+        Can modify function to include z-coordinate later
+        """
+        peaks, properties = sps.find_peaks(e1, height = height_threshold, distance = distance_threshold)
+        ind_shifts = [peak_index - window_length // 2 for peak_index in peaks]
+        return ind_shifts
+    
+    def windowSignal(self, e1, e2, ind_shift, window_length = 407):
+        """
+        This function windows the signals by applying a kaiser window
+        Input:
+        - e1 = time series for first electrode
+        - e2 = time series for second electrode
+        - window_length = index length of window
+        
+        Output: 
+        - e1_windowed = 1D array of windowed time series for first electrode
+        - e2_windowed = 1D array of windowed time series for second electrode
+        
+        Can modify function to include z-coordinate later
+        """
+        def shift_window(array_length, window, ind_shift):
+            padded_window = np.zeros(array_length)
+            w_length = len(window)
+            start = max(0, ind_shift)
+            end = min(array_length, ind_shift + w_length)
+            w_start = max(0, -ind_shift)
+            w_end = w_start + (end - start)
+            if end > start and w_end > w_start:
+                padded_window[start:end] = window[w_start:w_end]
+            return padded_window
+        N = len(e1)
+        kaiser_window = kaiser(window_length, beta = 0)
+        padded_kaiser = shift_window(N, kaiser_window, ind_shift)
+        e1_windowed = e1 * padded_kaiser
+        e2_windowed = e2 * padded_kaiser
+        return e1_windowed, e2_windowed
+    
+    def simpleCorrelate(self, e1, e2):
         """
         This function cross-correlates the signals and outputs the index delays
         Input:
-        - ele_num1 = number for first electrode (0 - 15)
-        - ele_num2 = number for second electrode (0 - 15)
-        - corr_mode = mode for correlation (takes "full", "valid", or "same")
+        - e1 = time series for first electrode
+        - e2 = time series for second electrode
         
         Output: 
         - RXY = 1D array of discrete linear cross-correlations
@@ -114,14 +176,12 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         
         Can modify function to include z-coordinate later
         """
-        e1 = self.signals[ele_num1]
-        e2 = self.signals[ele_num2]
         norm_factor = np.sqrt(np.sum(e1**2) * np.sum(e2**2))
-        RXY = sps.correlate(e2, e1, mode = corr_mode, method = "direct")/norm_factor
-        index_delays = sps.correlation_lags(len(e1), len(e2), mode = corr_mode)
+        RXY = sps.correlate(e2, e1, mode = "full", method = "direct")/norm_factor
+        index_delays = sps.correlation_lags(len(e1), len(e2), mode = "full")
         return RXY, index_delays
-    
-    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay):
+
+    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay):
         """
         This function finds the time delay that maximises cross-correlation
         Non-sensical time delays are filtered out by setting it to infinity if the index shift is 0
@@ -135,11 +195,22 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         - max_RXY = maximum cross-correlation value within the time window considered
         """
         # Set threshold for valid time delays
-        index_threshold = int(np.ceil(minTimeDelay * self.sigSampFreq))
-        neg_index_threshold = np.where(index_delays == -index_threshold)[0][0]
-        pos_index_threshold = np.where(index_delays == index_threshold)[0][0]
-        neg_max_index = RXY[:neg_index_threshold + 1].argmax()
-        pos_max_index = RXY[pos_index_threshold:].argmax() + pos_index_threshold
+        min_index_shift = int(np.ceil(minTimeDelay * self.sigSampFreq))
+        max_index_shift = int(np.floor(maxTimeDelay * self.sigSampFreq))
+        
+        max_possible_index_shift = max(index_delays)
+        
+        if max_index_shift > max_possible_index_shift:
+            max_index_shift = max_possible_index_shift
+        
+        max_neg_index_threshold = np.where(index_delays == -min_index_shift)[0][0]
+        min_neg_index_threshold = np.where(index_delays == -max_index_shift)[0][0]
+        
+        min_pos_index_threshold = np.where(index_delays == min_index_shift)[0][0]
+        max_pos_index_threshold = np.where(index_delays == max_index_shift)[0][0]
+        
+        neg_max_index = RXY[min_neg_index_threshold:max_neg_index_threshold + 1].argmax() + min_neg_index_threshold
+        pos_max_index = RXY[min_pos_index_threshold:max_pos_index_threshold].argmax() + min_pos_index_threshold
         # Only find maximum within window
         if RXY[pos_max_index] >= RXY[neg_max_index]:
             best_indexDelay = index_delays[pos_max_index]
@@ -150,13 +221,12 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         best_timeDelay = best_indexDelay/self.sigSampFreq
         return best_timeDelay, max_RXY
     
-    def velocity(self, ele_num1, ele_num2, corr_mode, maxVelocity):
+    def electrodePairVelocity(self, ele_num1, ele_num2, minVelocity, maxVelocity, ind_shift):
         """
-        This function creates a vector for wave velocity in m/s
+        This function creates a vector for wave velocity between pair of electrodes in m/s
         Input:
         - ele_num1 = number for first electrode (0 - 15)
         - ele_num2 = number for second electrode (0 - 15)
-        - corr_mode = mode for correlation (takes "full", "valid", or "same")
         - maxVelocity = maximum allowable velocity
         
         Output: velocity vector
@@ -167,21 +237,81 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         """
         d_vector = self.coord[ele_num2] - self.coord[ele_num1]
         d_mag = np.linalg.norm(d_vector)
-        minTimeDelay = d_mag * 0.001 /maxVelocity
-        RXY, ind_delays = self.simpleCorrelate(ele_num1, ele_num2, corr_mode)
-        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay)
+        
+        """ FOR DATA """
+        #minTimeDelay = d_mag * 0.001 /maxVelocity
+        #maxTimeDelay = d_mag * 0.001 /minVelocity
+        """ FOR DATA """
+
+        """ FOR TESTING PURPOSES """
+        minTimeDelay = d_mag /maxVelocity
+        maxTimeDelay = d_mag /minVelocity
+        """ FOR TESTING PURPOSES """
+        
+        e1 = self.signals[ele_num1]
+        e2 = self.signals[ele_num2]
+        
+        # NEED TO WINDOW SIGNAL
+        e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
+
+        RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
+        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
         speed = d_mag/best_t_delay
         direction_unit_vector = d_vector/d_mag
-        velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
+        
+        """ FOR DATA """
+        #velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
+        """ FOR DATA """
+        
+        """ FOR TESTING PURPOSES """
+        velocity_vector = speed * direction_unit_vector  #convert from mm/s to m/s
+        """ FOR TESTING PURPOSES """
         return velocity_vector, max_RXY
+    
+    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num):
+        """
+        This function combines two vectors measured from two electrodes with respect to a reference electrode
+        Input:
+        - ref_ele_num = number for reference electrode (0 - 15)
+        - ele_num1 = number for first electrode (one above or to right of reference electrode)
+        - ele_num2 = number for second electrode (one above or to right of reference electrode)
+        - minVelocity = minimum allowable velocity
+        - maxVelocity = maximum allowable velocity
+        
+        Output: velocity vector estimate
+        - Row 1 = x-component of velocity
+        - Row 2 = y-component of velocity
+        
+        Can modify function to include z-coordinate later
+        """
+        e1 = self.signals[ref_ele_num]
+        origin = self.coord[ref_ele_num]
+        ind_shifts = self.findEGMPeak(e1)
+        ind_shift = ind_shifts[peak_num]
+        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift)
+        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift)
+        
+        norm = np.linalg.norm(velocity1 + velocity2)
+        guess_vector = (1/norm) * (velocity1 + velocity2)
+        
+        alpha1, alpha2 = np.arccos(guess_vector[0]), np.arcsin(guess_vector[1])
+        
+        v_mag_guess1 = guess_vector[0]/np.cos(alpha1)
+        v_mag_guess2 = guess_vector[1]/np.sin(alpha2)
+        
+        v_average_mag = (v_mag_guess1 + v_mag_guess2) / 2
 
-    def velocityMap(self, ref_ele_num, corr_mode, maxVelocity):
+        v_guess = v_average_mag * guess_vector
+        return v_guess
+    
+    def velocityMap(self, ref_ele_num, minVelocity, maxVelocity, peak_num, num_vector):
         """
         This function calculates wave velocities for each pair of electrodes
         Input:
         - ref_ele_num = reference electrode in the pair
-        - corr_mode = mode for correlation (takes "full", "valid", or "same")
         - maxVelocity = maximum allowable velocity
+        - peak_num = which peak in intracardiac electrogram to calculate velocity
+        - num_vector = top num_vector vectors with the highest cross-correlation are plotted
         
         Output: 
         - velocity_vectors = list of velocity vectors
@@ -189,16 +319,58 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         
         Can modify function to include z-coordinate later
         """
+        e1 = self.signals[ref_ele_num]
         origin = self.coord[ref_ele_num]
         ele_nums = np.arange(0, 16, 1)
         ele_nums = np.delete(ele_nums, ref_ele_num)
         velocity_vectors = []
         max_RXY_arr = []
+        ind_shifts = self.findEGMPeak(e1)
+        ind_shift = ind_shifts[peak_num]
         for ele_num in ele_nums:
-            velocity_vector, max_RXY = self.velocity(ref_ele_num, ele_num, corr_mode, maxVelocity)
-            velocity_vectors.append(velocity_vector)
-            max_RXY_arr.append(max_RXY)
+            d_vector = self.coord[ele_num] - self.coord[ref_ele_num]
+            d_mag = np.linalg.norm(d_vector)
+            if d_mag <= 4 * np.sqrt(2):
+                # FOR SPECIFIC PEAK
+                ind_shifts = self.findEGMPeak(e1)
+                ind_shift = ind_shifts[peak_num]
+                
+                velocity_vector, max_RXY = self.velocity(ref_ele_num, ele_num, minVelocity, maxVelocity, ind_shift)
+                """"FOR CONVENIENCE SO I DON'T HAVE TO CONSTANTLY CHANGE THE FUNCTION INPUT"""
+                corr_threshold = num_vector
+                
+                if max_RXY > corr_threshold:
+                    velocity_vectors.append(velocity_vector)
+                    print(ref_ele_num, ele_num, velocity_vector, max_RXY)
+                    max_RXY_arr.append(max_RXY)
+                else:
+                    velocity_vectors.append(np.zeros(2))
+                    max_RXY_arr.append(0)
         return velocity_vectors, origin, max_RXY_arr
+    
+    def velocityGuessMap(self, minVelocity, maxVelocity, peak_num):
+        origins = []
+        velocity_vectors = []
+        for ref_ele_num in range(3):
+            for i in range(3):
+                ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
+                origins.append(ref_origin)
+                
+                ele_1 = ref_ele_num + 1
+                ele_2 = ref_ele_num + 4
+                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num)
+                velocity_vectors.append(v_guess)
+                
+                ref_ele_num += 5
+                ref_origin = self.coord[ref_ele_num] - np.full(2, 1)
+                origins.append(ref_origin)
+                
+                ele_1 = ref_ele_num - 4
+                ele_2 = ref_ele_num - 1 
+                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num)
+                velocity_vectors.append(v_guess)
+                ref_ele_num -= 1
+        return velocity_vectors, origins
     
     # def fractionalShift(self, max_index, best_indexDelay):
     #     """

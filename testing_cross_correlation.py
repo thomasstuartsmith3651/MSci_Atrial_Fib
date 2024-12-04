@@ -12,53 +12,247 @@ import numpy as np
 from scipy import integrate
 from scipy.signal.windows import kaiser
 from scipy.signal import correlate
+import scipy.signal as sps
 import matplotlib.pyplot as plt
 from test_cross_correlation_modules import *
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm, colors
+import pywt
+from scipy.stats import zscore
+
+#%%
+
+def dwt_decompose(signal, wavelet='db4', level=4):
+    """
+    Decomposes a signal using discrete wavelet transform (DWT).
+
+    Args:
+        signal (array): Input time series signal.
+        wavelet (str): Wavelet type (default: 'db4').
+        level (int): Decomposition level (default: None, maximum level).
+
+    Returns:
+        coeffs (list): Approximation and detail coefficients.
+    """
+    coeffs = pywt.wavedec(signal, wavelet, level=level)
+    return coeffs
+
+def cross_correlation(signal1, signal2):
+    """
+    Computes cross-correlation between two signals using scipy.signal.correlate.
+
+    Args:
+        signal1 (array): First input signal.
+        signal2 (array): Second input signal.
+
+    Returns:
+        max_corr (float): Maximum cross-correlation coefficient.
+    """
+    RXY = correlate(signal1, signal2, mode='full', method='direct')
+    index_delays = sps.correlation_lags(len(e1), len(e2), mode = "full")
+    max_ind = RXY.argmax()
+    max_corr, max_delay = RXY[max_ind], index_delays[max_ind]
+    return max_corr, max_delay
+
+def dwt_cross_correlation(signal1, signal2, wavelet='db4', level=4):
+    """
+    Computes DWT-based cross-correlation between two signals.
+
+    Args:
+        signal1 (array): First input signal.
+        signal2 (array): Second input signal.
+        wavelet (str): Wavelet type (default: 'db4').
+        level (int): Decomposition level (default: None, maximum level).
+
+    Returns:
+        corr_coeffs (list): Cross-correlation coefficients for each DWT level.
+    """
+    # Normalize signals to zero mean and unit variance
+    signal1 = zscore(signal1)
+    signal2 = zscore(signal2)
+
+    # Decompose signals using DWT
+    coeffs1 = dwt_decompose(signal1, wavelet, level)
+    coeffs2 = dwt_decompose(signal2, wavelet, level)
+
+    # Compute cross-correlation for each decomposition level
+    corr_coeffs = []
+    ind_lags = []
+    for c1, c2 in zip(coeffs1, coeffs2):
+        # Ensure the signals are the same length for correlation
+        min_len = min(len(c1), len(c2))
+        max_corr, max_delay = cross_correlation(c1[:min_len], c2[:min_len])
+        corr_coeffs.append(max_corr)
+        ind_lags.append(max_delay)
+    return corr_coeffs, ind_lags
+
+# Create a Gaussian pulse
+def generate_gaussian_pulse(length, std_dev, shift=0):
+    """
+    Generate a Gaussian pulse with optional time shift.
+
+    Args:
+        length (int): Length of the signal.
+        std_dev (float): Standard deviation of the Gaussian.
+        shift (int): Number of samples to shift the Gaussian pulse.
+
+    Returns:
+        signal (ndarray): Generated Gaussian pulse.
+    """
+    pulse = sps.gaussian(length, std_dev)
+    if shift > 0:
+        pulse = np.roll(pulse, shift)
+    return pulse
+
+#%%
+# Parameters
+length = 1024   # Length of the signals
+std_dev = 50    # Standard deviation of the Gaussian
+shift = 20      # Time shift for the second signal
+
+# Generate two signals: one shifted
+signal1 = generate_gaussian_pulse(length, std_dev, shift=0)
+signal2 = generate_gaussian_pulse(length, std_dev, shift=shift)
+
+# Visualize the signals
+plt.figure(figsize=(12, 6))
+plt.plot(signal1, label='Original Gaussian Pulse', alpha=0.8)
+plt.plot(signal2, label=f'Shifted Gaussian Pulse (Shift={shift})', alpha=0.8)
+plt.legend()
+plt.title('Gaussian Pulses')
+plt.xlabel('Sample Index')
+plt.ylabel('Amplitude')
+plt.grid()
+plt.show()
+
+delay = np.argmax(correlate(signal1, signal2, mode='full')) - len(signal1) + 1
+print("Detected Shift (Original Signal):", delay)
+# Import functions and perform DWT-based cross-correlation
+wavelet = 'db4'
+corr_coeffs, ind_lags = dwt_cross_correlation(signal1, signal2, wavelet=wavelet)
+
+# Print the results
+print("Cross-Correlation Coefficients at Each Level:")
+for level, (corr, lag) in enumerate(zip(corr_coeffs, ind_lags), start=1):
+    downsampling_factor = 2**level
+    adjusted_delay = lag / downsampling_factor
+    print(f"Level {level}: Max Corr = {corr:.4f}, Delay = {adjusted_delay:.2f} samples")
+
+#%%# Visualize cross-correlation coefficients across levels
+plt.figure(figsize=(12, 6))
+plt.bar(range(1, len(corr_coeffs) + 1), corr_coeffs, color='skyblue', edgecolor='k', alpha=0.7)
+plt.xlabel('DWT Level')
+plt.ylabel('Maximum Cross-Correlation')
+plt.title('DWT-Based Cross-Correlation for Gaussian Pulses')
+plt.grid()
+plt.show()
+
 #%%
 
 #TESTING WITH SIMPLER DATA (REGULAR HEARTBEAT)
 
 data = "ElectrogramData.xlsx"
-#coord = L.coordinates()
+L = LoadDataExcel(data)
+S = L.ele_signals()
+coord = L.coordinates()
 #print(S)
 #print(coord)
 
 A = AnalyseDataExcel(data)
-corr_mode = "same"
 
-e1 = 8
-e2 = 9
+e1 = S[2]
+e2 = S[7]
+
+corr_coeffs, ind_lags = dwt_cross_correlation(e1, e2)
+
+plt.plot(ind_lags, corr_coeffs, "o")
+plt.show()
+
+#%%
+data = "ElectrogramData.xlsx"
+L = LoadDataExcel(data)
+S = L.ele_signals()
+coord = L.coordinates()
+
+ele_1 = 8
+ele_2 = 9
+e1 = S[ele_1]
+e2 = S[ele_2]
+e14 = S[14]
+ind_shift = 0
 v = 2  # velocity in m/s
+indices = np.arange(0, len(S[ele_1]), 1)
+ind_shifts = A.findEGMPeak(e1)
+e1_w, e2_w = A.windowSignal(e1, e2, ind_shifts[3])
+print(ind_shifts)
+plt.plot(indices, e1)
+plt.plot(indices, e1_w)
+plt.show()
+
+#%%
+plt.plot(indices, e2)
+#plt.plot(peaks, e14[peaks], "x", label='Peaks')
+
+plt.plot(indices, e2_w)
+#plt.plot(indices, e2_w)
+plt.show()
+
+#%%
+
+data = "ElectrogramData.xlsx"
+L = LoadDataExcel(data)
+S = L.ele_signals()
+coord = L.coordinates()
+#print(S)
+#print(coord)
+
+A = AnalyseDataExcel(data)
+v = 2  # velocity in m/s
+u = 0.4
+peak_num = 2
+
+ele_1 = 2
+ele_2 = 14
+e1 = S[ele_1]
+e2 = S[ele_2]
+
+ind_shifts = A.findEGMPeak(e1)
+
+window_offset = ind_shifts[peak_num]
+
+e1_w, e2_w = A.windowSignal(e1, e2, window_offset)
 
 # Perform correlation
-RXY, index_delays = A.simpleCorrelate(e1, e2, corr_mode)
+RXY, index_delays = A.simpleCorrelate(e1_w, e2_w)
 
 # Calculate minimum time delay based on velocity
-minTimeDelay = 4 * 0.001 / v
+minTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) * 0.001 / v_max
+maxTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) * 0.001 / v_min
 neg_time_x = -minTimeDelay
+neg_time_x1 = -maxTimeDelay
 pos_time_x = minTimeDelay
+pos_time_x1 = maxTimeDelay
 time_y = np.linspace(np.min(RXY), np.max(RXY), 50)
 
 # Find the best time delay and its corresponding RXY value
-best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay)
+
+best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay, maxTimeDelay)
 #print(best_timeDelay, max_RXY)
 
 # Plotting
 plt.plot(index_delays / 2034.5, RXY, label="Cross-Correlation RXY")
-plt.axvline(neg_time_x, color='orange', linestyle="--", label="Negative Min Time Delay")
-plt.axvline(pos_time_x, color='green', linestyle="--", label="Positive Min Time Delay")
+#plt.axvline(neg_time_x, color='orange', linestyle="--", label="Negative Min Time Delay")
+#plt.axvline(pos_time_x, color='green', linestyle="--", label="Positive Min Time Delay")
 plt.plot(best_timeDelay, max_RXY, 'ro', label="Best Time Delay")
 
 # Shade the excluded regions
-plt.axvspan(np.min(index_delays / 2034.5), neg_time_x, color='orange', alpha=0.3)
-plt.axvspan(pos_time_x, np.max(index_delays / 2034.5), color='green', alpha=0.3)
+plt.axvspan(neg_time_x1, neg_time_x, color='orange', alpha=0.3, label = "Valid Negative Time Delay")
+plt.axvspan(pos_time_x, pos_time_x1, color='green', alpha=0.3, label = "Valid Positive Time Delay")
 
 # Add title and labels
-plt.title(f"Electrode {e1} and {e2}")
+plt.title(f"Electrode {ele_1} and {ele_2}")
 plt.xlabel("Time Delay (s)")
 plt.ylabel("RXY")
 
@@ -68,55 +262,74 @@ plt.legend()
 # Show the plot
 plt.show()
 
+velocity_vector, max_RXY = A.velocity(ele_1, ele_2, v_min, v_max, ind_shifts[peak_num])
+
+print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
 #%%
 L = LoadDataExcel(data)
 time = L.time_data()
 S = L.ele_signals()
 
-plt.plot(time, S[4], label = "electrode 4")
-plt.plot(time, S[11], label = "electrode 11")
-plt.legend()
-plt.show()
-
-#%%
-
-plt.plot(time, S[4], label = "electrode 4")
+#plt.plot(time, S[3], label = "electrode 3")
+#plt.plot(time, S[2], label = "electrode 2")
+#plt.plot(time, S[7], label = "electrode 7")
 plt.plot(time, S[12], label = "electrode 12")
+plt.plot(time, S[13], label = "electrode 13")
+plt.legend()
+plt.show()
+
+#%%
+
+L = LoadDataExcel(data)
+time = L.time_data()
+S = L.ele_signals()
+
+plt.plot(time, S[2], label = "electrode 2")
+plt.plot(time, S[6], label = "electrode 6")
+plt.plot(time, S[10], label = "electrode 10")
 plt.legend()
 plt.show()
 
 
 #%%
+# Data and initialization
 data = "ElectrogramData.xlsx"
 A = AnalyseDataExcel(data)
-corr_mode = "same"
+peak_num = 3
+num_vectors = 3
+v_min = 0.4
+v_max = 2
 
 # List of e1 values to plot
-e1_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 ,14, 15]  # Replace with the actual range or list of e1 values
+e1_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # Replace with the actual range or list of e1 values
 
 # Set up the figure and color map
 plt.figure(figsize=(12, 6))  # Adjust the figure size
 cmap = plt.cm.viridis
 
-# Initialize variables to track global min/max for the axis limits
-global_x_min, global_x_max = float('inf'), float('-inf')
-global_y_min, global_y_max = float('inf'), float('-inf')
-
-# Normalize the color scale across all e1 values
-all_max_RXY = []
-for e1 in e1_values:
-    _, _, max_RXY_arr = A.velocityMap(e1, corr_mode, 2)
-    all_max_RXY.extend(max_RXY_arr)
-norm = plt.Normalize(vmin=np.min(all_max_RXY), vmax=np.max(all_max_RXY))
-
 # Electrode positions
 electrode_x = [0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12]
 electrode_y = [0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12]
 
-# Loop through e1 values and overlay their velocity vectors
+# Initialize variables to track global min/max for axis limits
+global_x_min, global_x_max = float('inf'), float('-inf')
+global_y_min, global_y_max = float('inf'), float('-inf')
+
+# Collect all max_RXY values for normalization
+all_max_RXY = []
+
 for e1 in e1_values:
-    # Call the velocityMap function for the current e1
-    vectors, origin, max_RXY_arr = A.velocityMap(e1, corr_mode, 2)
+    # Call the velocityMap function to get data
+    _, _, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
+    all_max_RXY.extend(max_RXY_arr)
+
+# Define normalization for color mapping
+norm = plt.Normalize(vmin=np.min(all_max_RXY), vmax=np.max(all_max_RXY))
+
+# Loop through e1 values to plot vectors
+for e1 in e1_values:
+    # Call the velocityMap function
+    vectors, origin, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
 
     # Extract x and y components from the vectors
     x_vectors = [v[0] for v in vectors]  # x components
@@ -131,7 +344,7 @@ for e1 in e1_values:
         x_origins, y_origins, x_vectors, y_vectors,
         max_RXY_arr,  # Use magnitudes to color the vectors
         angles='xy', scale_units='xy', scale=1,
-        cmap=cmap, norm=norm, alpha=0.6,  # Set alpha for overlay visibility
+        cmap=cmap, norm=norm, alpha=0.6,  # Apply the normalization
     )
 
     # Update global min/max for axis limits
@@ -158,7 +371,6 @@ plt.axvline(0, color='black', linewidth=0.5)
 plt.grid()
 
 # Label the plot
-#plt.title("Combined Velocity Plot for All Electrodes (Velocity vectors in m/s)")
 plt.title("Velocity Plot for Left Column of Electrodes (Velocity vectors in m/s)")
 plt.xlabel("x-position (mm)")
 plt.ylabel("y-position (mm)")
@@ -173,8 +385,13 @@ plt.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space for the legend
 plt.show()
 
 #%%
-e1 = 5
-vectors, origin, max_RXY_arr = A.velocityMap(e1, corr_mode, 2)
+e1 = 2
+peak_num = 2
+num_vector = 0.9
+v_min = 0.4
+v_max = 2
+vectors, origin, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vector)
+print(vectors, max_RXY_arr)
 
 # Extract x and y components from the vectors
 x_vectors = [v[0] for v in vectors]  # x components
