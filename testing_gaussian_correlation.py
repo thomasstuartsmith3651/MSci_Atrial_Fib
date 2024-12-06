@@ -31,7 +31,7 @@ sys.path.append('/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/
 
 #%%
 
-data = "test_gaussian_data.xlsx"
+data = "test_gaussian_data_45.xlsx"
 L = LoadDataExcel(data)
 S = L.ele_signals()
 times = L.time_data()
@@ -54,9 +54,10 @@ peak_num = 0
 num_vectors = 3
 v_min = 0.4
 v_max = 2
+corr_threshold = 0.75
 
 ele_1 = 3
-ele_2 = 2
+ele_2 = 6
 e1 = S[ele_1]
 e2 = S[ele_2]
 peaks1, _ = sps.find_peaks(e1, height = 0.9)
@@ -93,15 +94,21 @@ plt.show()
 #%%
 # Perform correlation
 RXY, index_delays = A.simpleCorrelate(e1_w, e2_w)
-
+peaksRXY, _ = sps.find_peaks(RXY, height = 0.9)
+print(peaksRXY)
+peak_index_e1 = index_delays[peaksRXY[0]]
+print(peak_index_e1)
+peakRXY_val = RXY[peaksRXY[0]]
+print(peak_index_e1, peakRXY_val)
 plt.plot(index_delays, RXY)
+plt.plot(peak_index_e1, peakRXY_val, "o")
 plt.show()
 
 #%%
 
 # Calculate minimum time delay based on velocity
-minTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) / v_max
-maxTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) / v_min
+minTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) * 0.001 / v_max
+maxTimeDelay = np.linalg.norm(coord[ele_2] - coord[ele_1]) * 0.001 / v_min
 neg_time_x = -minTimeDelay
 neg_time_x1 = -maxTimeDelay
 pos_time_x = minTimeDelay
@@ -110,11 +117,12 @@ time_y = np.linspace(np.min(RXY), np.max(RXY), 50)
 
 # Find the best time delay and its corresponding RXY value
 
-best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay, maxTimeDelay)
+best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay, maxTimeDelay, corr_threshold)
 #print(best_timeDelay, max_RXY)
+print("CALCULATED", best_timeDelay, "EXPECTED", time_diff)
 
 # Plotting
-plt.plot(index_delays / (1000/20), RXY, label="Cross-Correlation RXY")
+plt.plot(index_delays / (2034.5), RXY, label="Cross-Correlation RXY")
 #plt.axvline(neg_time_x, color='orange', linestyle="--", label="Negative Min Time Delay")
 #plt.axvline(pos_time_x, color='green', linestyle="--", label="Positive Min Time Delay")
 plt.plot(best_timeDelay, max_RXY, 'ro', label="Best Time Delay")
@@ -133,31 +141,32 @@ plt.legend()
 
 # Show the plot
 plt.show()
+
+print(best_timeDelay)
 #%%
-velocity_vector, max_RXY = A.electrodePairVelocity(ele_1, ele_2, v_min, v_max, ind_shifts[peak_num])
+#velocity_vector, max_RXY = A.electrodePairVelocity(ele_1, ele_2, v_min, v_max, ind_shifts[peak_num], corr_threshold)
 
-print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
+#print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
 
-#%%
-
-velocity_vector, _ = A.electrodePairVelocity(3, 2, v_min, v_max, ind_shifts[peak_num])
-velocity_vector2, _ = A.electrodePairVelocity(3, 7, v_min, v_max, ind_shifts[peak_num])
+velocity_vector, _ = A.electrodePairVelocity(3, 2, v_min, v_max, ind_shifts[peak_num], corr_threshold)
+velocity_vector2, _ = A.electrodePairVelocity(3, 7, v_min, v_max, ind_shifts[peak_num], corr_threshold)
 print("CHECK", velocity_vector, velocity_vector2)
 
-v_guess = A.guessVelocity(3, 2, 7, v_min, v_max, peak_num)
+v_guess = A.guessVelocity(3, 7, 2, v_min, v_max, peak_num, corr_threshold)
 
 #%%
 
-data = "test_gaussian_data.xlsx"
+data = "test_gaussian_data_30.xlsx"
 
 A = AnalyseDataExcel(data)
 peak_num = 0
 num_vectors = 0.9
 v_min = 0.4
 v_max = 2
+corr_threshold = 0.75
 
 # Your existing code to compute vectors and origins
-vectors, origins = A.velocityGuessMap(v_min, v_max, peak_num)
+vectors, origins = A.velocityGuessMap(v_min, v_max, peak_num, corr_threshold)
 
 x_origins = [x[0] for x in origins]
 y_origins = [x[1] for x in origins]
@@ -197,20 +206,20 @@ quiver = plt.quiver(x_origins, y_origins, x_vectors, y_vectors, color="blue")
 
 # Annotate magnitudes near each vector
 for x, y, mag in zip(x_origins, y_origins, magnitudes):
-    plt.text(x, y, f"{mag:.2f}", fontsize=8, color="black", ha='right', va='bottom')
+    plt.text(x, y, f"{mag:.4f}", fontsize=8, color="black", ha='right', va='bottom')
 
 # Add grid and axes
 plt.axhline(0, color='black', linewidth=0.5)
 plt.axvline(0, color='black', linewidth=0.5)
 plt.grid()
-plt.title("Vector plot")
-plt.xlabel("X position")
-plt.ylabel("Y position")
+plt.title("Vector plot (velocity vectors in m/s)")
+plt.xlabel("X position (mm)")
+plt.ylabel("Y position (mm)")
 plt.show()
 
 #%%
 
-data = "test_gaussian_data.xlsx"
+data = "test_gaussian_data_45.xlsx"
 
 A = AnalyseDataExcel(data)
 peak_num = 0

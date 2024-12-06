@@ -29,6 +29,8 @@ import pywt
 from scipy.stats import zscore
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial import Delaunay
+from iminuit import Minuit
+from iminuit.cost import LeastSquares
 
 """
 For some reason my laptop can't find this file in my local directory so I need the line below to import the file.
@@ -56,9 +58,9 @@ class LoadDataExcel:
             signals = pd.read_excel(data, sheet_name = 0)
             signals = signals.transpose().to_numpy()
             
-            #t_interval = 1/2034.5 #sampling frequency is 2034.5 Hz
+            t_interval = 1/2034.5 #sampling frequency is 2034.5 Hz
             """ FOR TESTING ONLY """
-            t_interval = 20/1000 #sampling frequency is 2034.5 Hz
+            #t_interval = 20/1000 #sampling frequency is 2034.5 Hz
             """ FOR TESTING ONLY """
             time = np.arange(0, signals.shape[1] * t_interval, t_interval)
             return x, y, coord, signals, time
@@ -103,18 +105,12 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
     def __init__(self, fileName): #velocity in mm/s angles in radians
         LoadDataExcel.__init__(self, fileName)
         
-        """ FOR DATA """
-        #self.sigSampFreq = 2034.5 #units of Hz
-        """ FOR DATA """
-        
-        """ FOR TESTING ONLY """
-        self.sigSampFreq = 1000/20 
-        """ FOR TESTING ONLY """
+        self.sigSampFreq = 2034.5 #units of Hz
         self.sigSampInterval = 1/self.sigSampFreq
         #self.minVelocity, self.maxVelocity = velocityRange[0], velocityRange[1]
         #self.minAngle, self.maxAngle = angleRange[0], angleRange[1]
     
-    def findEGMPeak(self, e1, window_length = 407, height_threshold = 0.5, distance_threshold = 300):
+    def findEGMPeak(self, e1, window_length = 814, height_threshold = 0.5, distance_threshold = 300):
         """
         This function finds the peaks in the EGM signal and outputs indices to apply the kaiser window
         Input:
@@ -132,7 +128,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         ind_shifts = [peak_index - window_length // 2 for peak_index in peaks]
         return ind_shifts
     
-    def windowSignal(self, e1, e2, ind_shift, window_length = 407):
+    def windowSignal(self, e1, e2, ind_shift, window_length = 814):
         """
         This function windows the signals by applying a kaiser window
         Input:
@@ -181,7 +177,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         index_delays = sps.correlation_lags(len(e1), len(e2), mode = "full")
         return RXY, index_delays
 
-    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay):
+    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay, corr_threshold):
         """
         This function finds the time delay that maximises cross-correlation
         Non-sensical time delays are filtered out by setting it to infinity if the index shift is 0
@@ -218,10 +214,14 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         elif RXY[pos_max_index] < RXY[neg_max_index]:
             best_indexDelay = index_delays[neg_max_index]
             max_RXY = RXY[neg_max_index]
-        best_timeDelay = best_indexDelay/self.sigSampFreq
+            
+        if max_RXY < corr_threshold:
+            best_timeDelay = np.inf
+        else:
+            best_timeDelay = best_indexDelay/self.sigSampFreq
         return best_timeDelay, max_RXY
     
-    def electrodePairVelocity(self, ele_num1, ele_num2, minVelocity, maxVelocity, ind_shift):
+    def electrodePairVelocity(self, ele_num1, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold):
         """
         This function creates a vector for wave velocity between pair of electrodes in m/s
         Input:
@@ -237,16 +237,9 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         """
         d_vector = self.coord[ele_num2] - self.coord[ele_num1]
         d_mag = np.linalg.norm(d_vector)
-        
-        """ FOR DATA """
-        #minTimeDelay = d_mag * 0.001 /maxVelocity
-        #maxTimeDelay = d_mag * 0.001 /minVelocity
-        """ FOR DATA """
 
-        """ FOR TESTING PURPOSES """
-        minTimeDelay = d_mag /maxVelocity
-        maxTimeDelay = d_mag /minVelocity
-        """ FOR TESTING PURPOSES """
+        minTimeDelay = d_mag * 0.001 /maxVelocity
+        maxTimeDelay = d_mag * 0.001 /minVelocity
         
         e1 = self.signals[ele_num1]
         e2 = self.signals[ele_num2]
@@ -255,20 +248,16 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
 
         RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
-        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
+        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay, corr_threshold)
+        
         speed = d_mag/best_t_delay
         direction_unit_vector = d_vector/d_mag
-        
-        """ FOR DATA """
-        #velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
-        """ FOR DATA """
-        
-        """ FOR TESTING PURPOSES """
-        velocity_vector = speed * direction_unit_vector  #convert from mm/s to m/s
-        """ FOR TESTING PURPOSES """
+
+        velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
+
         return velocity_vector, max_RXY
     
-    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num):
+    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
         """
         This function combines two vectors measured from two electrodes with respect to a reference electrode
         Input:
@@ -288,21 +277,102 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         origin = self.coord[ref_ele_num]
         ind_shifts = self.findEGMPeak(e1)
         ind_shift = ind_shifts[peak_num]
-        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift)
-        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift)
+        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
         
-        norm = np.linalg.norm(velocity1 + velocity2)
-        guess_vector = (1/norm) * (velocity1 + velocity2)
+        """
+        VERY CRUDE NEED TO CHANGE
+        """
+        guess_vector = velocity1 + velocity2
+        norm = np.linalg.norm(guess_vector)
+        guess_unit_vector = (1/norm) * guess_vector
         
-        alpha1, alpha2 = np.arccos(guess_vector[0]), np.arcsin(guess_vector[1])
+        v_mag_guess = np.multiply(guess_vector, guess_unit_vector)
         
-        v_mag_guess1 = guess_vector[0]/np.cos(alpha1)
-        v_mag_guess2 = guess_vector[1]/np.sin(alpha2)
-        
-        v_average_mag = (v_mag_guess1 + v_mag_guess2) / 2
-
-        v_guess = v_average_mag * guess_vector
+        #pick a guess for now
+        v_guess = np.multiply(v_mag_guess, guess_unit_vector)
         return v_guess
+    
+    # def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
+    #     """
+    #     This function creates a vector for wave velocity between pair of electrodes in m/s
+    #     Input:
+    #     - ele_num1 = number for first electrode (0 - 15)
+    #     - ele_num2 = number for second electrode (0 - 15)
+    #     - maxVelocity = maximum allowable velocity
+        
+    #     Output: velocity vector
+    #     - Row 1 = x-component of velocity
+    #     - Row 2 = y-component of velocity
+        
+    #     Can modify function to include z-coordinate later
+    #     """
+        
+    #     # e1 = self.signals[ref_ele_num]
+    #     # e2 = self.signals[ele_num1]
+    #     # e3 = self.signals[ele_num2]
+        
+    #     # origin = self.coord[ref_ele_num]
+        
+    #     # ind_shifts = self.findEGMPeak(e1)
+    #     # ind_shift = ind_shifts[peak_num]
+        
+    #     # d_vector1 = self.coord[ele_num1] - self.coord[ref_ele_num]
+    #     # d_mag1 = np.linalg.norm(d_vector1)
+        
+    #     # d_vector2 = self.coord[ele_num2] - self.coord[ref_ele_num]
+    #     # d_mag2 = np.linalg.norm(d_vector2)
+
+    #     # minTimeDelay1, maxTimeDelay1 = d_mag1 * 0.001 / maxVelocity, d_mag1 * 0.001 / minVelocity
+    #     # minTimeDelay2, maxTimeDelay2 = d_mag2 * 0.001 / maxVelocity, d_mag2 * 0.001 / minVelocity
+        
+    #     # # NEED TO WINDOW SIGNAL
+    #     # e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
+    #     # _, e3_w = self.windowSignal(e1, e3, ind_shift) # DO FIRST PEAK FOR NOW
+
+    #     # RXY1, ind_delays1 = self.simpleCorrelate(e1_w, e2_w)
+    #     # best_t_delay1, max_RXY1 = self.maxRXY_timeDelay(RXY1, ind_delays1, minTimeDelay1, maxTimeDelay1, corr_threshold)
+        
+    #     # RXY2, ind_delays2 = self.simpleCorrelate(e1_w, e3_w)
+    #     # best_t_delay2, max_RXY2 = self.maxRXY_timeDelay(RXY2, ind_delays2, minTimeDelay2, maxTimeDelay2, corr_threshold)
+        
+    #     # vel1 = d_vector1/best_t_delay1
+    #     # vel2 = d_vector2/best_t_delay2
+        
+    #     # guess_vector = vel1 + vel2
+    #     # norm = np.linalg.norm(guess_vector)
+    #     # guess_vector_normalised = guess_vector / norm
+    #     # alpha1 = np.arccos(guess_vector_normalised[0])
+    #     # alpha2 = np.arcsin(guess_vector_normalised[1])
+    #     # print(guess_vector, guess_vector_normalised, alpha1, alpha2)
+    #     # v_mag_guess1 = guess_vector[0] * np.cos(alpha1) * 0.001 #m/s
+    #     # v_mag_guess2 = guess_vector[1] * np.sin(alpha2) * 0.001 #m/s
+    #     # print(v_mag_guess1, v_mag_guess2)
+    #     # v_guess = v_mag_guess1 * guess_vector_normalised
+    #     # """
+    #     # LEAST SQUARES
+    #     # """
+    #     # def func(d_vector, vel, alpha):
+    #     #     direction_vector = np.array([np.cos(alpha), np.sin(alpha)])
+    #     #     print(direction_vector)
+    #     #     return np.dot(d_vector, direction_vector)/vel
+        
+    #     # time_vector = np.array([best_t_delay1, best_t_delay2])
+    #     # distance_vector = np.array([d_vector1, d_vector2])
+    #     # v_min, v_max = minVelocity, maxVelocity
+    #     # alpha_min, alpha_max = 0, np.pi/2
+    #     # # NO ERRORS SO ASSUME UNIT WEIGHTS
+    #     # least_squares = LeastSquares(distance_vector, time_vector, np.ones_like(time_vector), func)
+    #     # m = Minuit(least_squares, vel = 0.7, alpha = np.pi/4)
+    #     # m.limits["vel"] = (v_min, v_max)
+    #     # m.limits["alpha"] = (alpha_min, alpha_max)
+    #     # m.migrad()
+    #     # v_mag, angle = m.values[0], m.values[1]
+    #     # print(v_mag, angle)
+        
+    #     # v_guess = v_mag * np.array([np.cos(angle), np.sin(angle)])
+        
+    #     return v_guess
     
     def velocityMap(self, ref_ele_num, minVelocity, maxVelocity, peak_num, num_vector):
         """
@@ -348,7 +418,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                     max_RXY_arr.append(0)
         return velocity_vectors, origin, max_RXY_arr
     
-    def velocityGuessMap(self, minVelocity, maxVelocity, peak_num):
+    def velocityGuessMap(self, minVelocity, maxVelocity, peak_num, corr_threshold):
         origins = []
         velocity_vectors = []
         for ref_ele_num in range(3):
@@ -356,9 +426,9 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
                 origins.append(ref_origin)
                 
-                ele_1 = ref_ele_num + 1
-                ele_2 = ref_ele_num + 4
-                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num)
+                ele_1 = ref_ele_num + 4
+                ele_2 = ref_ele_num + 1
+                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
                 velocity_vectors.append(v_guess)
                 
                 ref_ele_num += 5
@@ -367,7 +437,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 
                 ele_1 = ref_ele_num - 4
                 ele_2 = ref_ele_num - 1 
-                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num)
+                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
                 velocity_vectors.append(v_guess)
                 ref_ele_num -= 1
         return velocity_vectors, origins
