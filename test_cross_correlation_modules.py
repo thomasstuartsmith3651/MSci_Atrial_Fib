@@ -31,6 +31,7 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial import Delaunay
 from iminuit import Minuit
 from iminuit.cost import LeastSquares
+from scipy.optimize import minimize
 
 """
 For some reason my laptop can't find this file in my local directory so I need the line below to import the file.
@@ -257,9 +258,10 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
 
         return velocity_vector, max_RXY
     
-    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
+    def guessVelocity_ORTHOGONAL(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
         """
         This function combines two vectors measured from two electrodes with respect to a reference electrode
+        NOTE: THIS FUNCTION ONLY WORKS IF ele_num1 AND ele_num2 ARE ORTHOGONAL TO EACH OTHER
         Input:
         - ref_ele_num = number for reference electrode (0 - 15)
         - ele_num1 = number for first electrode (one above or to right of reference electrode)
@@ -270,109 +272,148 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         Output: velocity vector estimate
         - Row 1 = x-component of velocity
         - Row 2 = y-component of velocity
-        
-        Can modify function to include z-coordinate later
         """
         e1 = self.signals[ref_ele_num]
-        origin = self.coord[ref_ele_num]
         ind_shifts = self.findEGMPeak(e1)
         ind_shift = ind_shifts[peak_num]
         velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
         velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
         
+        sum_vector = velocity1 + velocity2
+        norm = np.linalg.norm(sum_vector)
+        sum_unit_vector = (1/norm) * sum_vector
         """
-        VERY CRUDE NEED TO CHANGE
+        FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
+        SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
+        ELSE: USE SIMILAR TRIANGLE TRIGONOMETRY TO WORK OUT WHAT THE VELOCITY VECTOR IS (ASSUMING ELECTRODE MEASURES A PLANE WAVE)
         """
-        guess_vector = velocity1 + velocity2
-        norm = np.linalg.norm(guess_vector)
-        guess_unit_vector = (1/norm) * guess_vector
-        
-        v_mag_guess = np.multiply(guess_vector, guess_unit_vector)
-        
-        #pick a guess for now
-        v_guess = np.multiply(v_mag_guess, guess_unit_vector)
+        if sum_vector[0] == velocity1[0] and sum_vector[1] == velocity1[1]:
+            v_guess = velocity1
+            print("v1")
+        elif sum_vector[0] == velocity2[0] and sum_vector[1] == velocity2[1]:
+            v_guess = velocity2
+            print("v2")
+        else:
+            measured_ang1, measured_ang2 = np.arccos(sum_unit_vector[0]), np.arcsin(sum_unit_vector[1])
+            propagation_ang1, propagation_ang2 = np.pi/2 - measured_ang1, np.pi/2 - measured_ang2
+            guess_unit_vector = np.array([np.cos(propagation_ang1), np.sin(propagation_ang2)])
+            # calculate velocity vector magnitude
+            v_mag_guess = np.multiply(sum_vector, guess_unit_vector) # vector form of v = v1 * cos(alpha) and v = v2 * sin(alpha)
+            print(np.degrees(propagation_ang1), np.degrees(propagation_ang2), v_mag_guess)
+            # calculate velocity vector
+            v_guess = np.multiply(v_mag_guess, guess_unit_vector) # calculate v * (cos(alpha), sin(alpha))
         return v_guess
     
-    # def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
-    #     """
-    #     This function creates a vector for wave velocity between pair of electrodes in m/s
-    #     Input:
-    #     - ele_num1 = number for first electrode (0 - 15)
-    #     - ele_num2 = number for second electrode (0 - 15)
-    #     - maxVelocity = maximum allowable velocity
+    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
+        """
+        This function combines two vectors measured from two electrodes with respect to a reference electrode
+        NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
+        Input:
+        - ref_ele_num = number for reference electrode (0 - 15)
+        - ele_num1 = number for first electrode
+        - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
+        - minVelocity = minimum allowable velocity
+        - maxVelocity = maximum allowable velocity
         
-    #     Output: velocity vector
-    #     - Row 1 = x-component of velocity
-    #     - Row 2 = y-component of velocity
+        Output: velocity vector estimate
+        - Row 1 = x-component of velocity
+        - Row 2 = y-component of velocity
+        """
+        e1 = self.signals[ref_ele_num]
+        ind_shifts = self.findEGMPeak(e1)
+        ind_shift = ind_shifts[peak_num]
+        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
         
-    #     Can modify function to include z-coordinate later
-    #     """
-        
-    #     # e1 = self.signals[ref_ele_num]
-    #     # e2 = self.signals[ele_num1]
-    #     # e3 = self.signals[ele_num2]
-        
-    #     # origin = self.coord[ref_ele_num]
-        
-    #     # ind_shifts = self.findEGMPeak(e1)
-    #     # ind_shift = ind_shifts[peak_num]
-        
-    #     # d_vector1 = self.coord[ele_num1] - self.coord[ref_ele_num]
-    #     # d_mag1 = np.linalg.norm(d_vector1)
-        
-    #     # d_vector2 = self.coord[ele_num2] - self.coord[ref_ele_num]
-    #     # d_mag2 = np.linalg.norm(d_vector2)
+        wavefront_vector = velocity2 - velocity1
+        norm = np.linalg.norm(wavefront_vector)
+        wavefront_unit_vector = (1/norm) * wavefront_vector
+        """
+        FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
+        SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
+        ELSE: USE VECTOR MATH TO CALCULATE VELOCITY VECTOR
+        """
+        if wavefront_vector[0] == -velocity1[0] and wavefront_vector[1] == -velocity1[1]:
+            v_guess = velocity1
+        elif wavefront_vector[0] == velocity2[0] and wavefront_vector[1] == velocity2[1]:
+            v_guess = velocity2
+        else:
+            rotation_matrix = np.array([[0, 1], [-1, 0]])
+            guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
+            velocity1_mag = np.linalg.norm(velocity1)
+            velocity2_mag = np.linalg.norm(velocity2)
 
-    #     # minTimeDelay1, maxTimeDelay1 = d_mag1 * 0.001 / maxVelocity, d_mag1 * 0.001 / minVelocity
-    #     # minTimeDelay2, maxTimeDelay2 = d_mag2 * 0.001 / maxVelocity, d_mag2 * 0.001 / minVelocity
-        
-    #     # # NEED TO WINDOW SIGNAL
-    #     # e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
-    #     # _, e3_w = self.windowSignal(e1, e3, ind_shift) # DO FIRST PEAK FOR NOW
+            v_mag_guess1 = np.dot(velocity1, guess_unit_vector)
+            v_mag_guess2 = np.dot(velocity2, guess_unit_vector)
+            
+            #in case they are different, usually they are very similar
+            v_mag_guess = (v_mag_guess1 + v_mag_guess2) / 2
+            v_guess = v_mag_guess * guess_unit_vector
+            print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
+        return v_guess
 
-    #     # RXY1, ind_delays1 = self.simpleCorrelate(e1_w, e2_w)
-    #     # best_t_delay1, max_RXY1 = self.maxRXY_timeDelay(RXY1, ind_delays1, minTimeDelay1, maxTimeDelay1, corr_threshold)
+    def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold, alpha = 0.1, tolerance = 1e-6, max_iterations = 1000):
+        """
+        This function combines two vectors measured from two electrodes with respect to a reference electrode
+        Velocity magnitude is guessed using least squares minimisation
+        NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
+        Input:
+        - ref_ele_num = number for reference electrode (0 - 15)
+        - ele_num1 = number for first electrode
+        - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
+        - minVelocity = minimum allowable velocity
+        - maxVelocity = maximum allowable velocity
+        - corr_threshold = minimum allowable cross-correlation for valid time delay
+        - alpha = learning rate
+        - tolerance = maximum allowable error
+        - max_iterations = maximum number of iterations to compute least squares
         
-    #     # RXY2, ind_delays2 = self.simpleCorrelate(e1_w, e3_w)
-    #     # best_t_delay2, max_RXY2 = self.maxRXY_timeDelay(RXY2, ind_delays2, minTimeDelay2, maxTimeDelay2, corr_threshold)
+        Output: velocity vector estimate
+        - Row 1 = x-component of velocity
+        - Row 2 = y-component of velocity
+        """
+        e1 = self.signals[ref_ele_num]
+        ind_shifts = self.findEGMPeak(e1)
+        ind_shift = ind_shifts[peak_num]
+        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
         
-    #     # vel1 = d_vector1/best_t_delay1
-    #     # vel2 = d_vector2/best_t_delay2
-        
-    #     # guess_vector = vel1 + vel2
-    #     # norm = np.linalg.norm(guess_vector)
-    #     # guess_vector_normalised = guess_vector / norm
-    #     # alpha1 = np.arccos(guess_vector_normalised[0])
-    #     # alpha2 = np.arcsin(guess_vector_normalised[1])
-    #     # print(guess_vector, guess_vector_normalised, alpha1, alpha2)
-    #     # v_mag_guess1 = guess_vector[0] * np.cos(alpha1) * 0.001 #m/s
-    #     # v_mag_guess2 = guess_vector[1] * np.sin(alpha2) * 0.001 #m/s
-    #     # print(v_mag_guess1, v_mag_guess2)
-    #     # v_guess = v_mag_guess1 * guess_vector_normalised
-    #     # """
-    #     # LEAST SQUARES
-    #     # """
-    #     # def func(d_vector, vel, alpha):
-    #     #     direction_vector = np.array([np.cos(alpha), np.sin(alpha)])
-    #     #     print(direction_vector)
-    #     #     return np.dot(d_vector, direction_vector)/vel
-        
-    #     # time_vector = np.array([best_t_delay1, best_t_delay2])
-    #     # distance_vector = np.array([d_vector1, d_vector2])
-    #     # v_min, v_max = minVelocity, maxVelocity
-    #     # alpha_min, alpha_max = 0, np.pi/2
-    #     # # NO ERRORS SO ASSUME UNIT WEIGHTS
-    #     # least_squares = LeastSquares(distance_vector, time_vector, np.ones_like(time_vector), func)
-    #     # m = Minuit(least_squares, vel = 0.7, alpha = np.pi/4)
-    #     # m.limits["vel"] = (v_min, v_max)
-    #     # m.limits["alpha"] = (alpha_min, alpha_max)
-    #     # m.migrad()
-    #     # v_mag, angle = m.values[0], m.values[1]
-    #     # print(v_mag, angle)
-        
-    #     # v_guess = v_mag * np.array([np.cos(angle), np.sin(angle)])
-        
-    #     return v_guess
+        wavefront_vector = velocity2 - velocity1
+        norm = np.linalg.norm(wavefront_vector)
+        wavefront_unit_vector = (1 / norm) * wavefront_vector
+    
+        if wavefront_vector[0] == -velocity1[0] and wavefront_vector[1] == -velocity1[1]:
+            v_guess = velocity1
+        elif wavefront_vector[0] == velocity2[0] and wavefront_vector[1] == velocity2[1]:
+            v_guess = velocity2
+        else:
+            rotation_matrix = np.array([[0, 1], [-1, 0]])
+            guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
+
+            cos_theta1 = np.dot(velocity1, guess_unit_vector) / np.linalg.norm(velocity1)
+            cos_theta2 = np.dot(velocity2, guess_unit_vector) / np.linalg.norm(velocity2)
+            
+            magnitude1 = np.linalg.norm(velocity1)
+            magnitude2 = np.linalg.norm(velocity2)
+    
+            # Gradient descent for minimization
+            v_mag_guess = (magnitude1 + magnitude2) / 2  # Initial guess
+            
+            for iteration in range(max_iterations):
+                # Compute gradient of the loss function
+                gradient = 2 * (v_mag_guess - magnitude1 * cos_theta1) + 2 * (v_mag_guess - magnitude2 * cos_theta2)
+                
+                # Update velocity magnitude guess
+                v_mag_guess -= alpha * gradient
+                
+                # Check for convergence
+                if abs(gradient) < tolerance:
+                    break
+            
+            # Compute final velocity vector
+            v_guess = v_mag_guess * guess_unit_vector
+            print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
+        return v_guess
     
     def velocityMap(self, ref_ele_num, minVelocity, maxVelocity, peak_num, num_vector):
         """
@@ -428,7 +469,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 
                 ele_1 = ref_ele_num + 4
                 ele_2 = ref_ele_num + 1
-                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
+                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
                 velocity_vectors.append(v_guess)
                 
                 ref_ele_num += 5

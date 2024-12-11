@@ -31,7 +31,7 @@ sys.path.append('/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/
 
 #%%
 
-data = "test_gaussian_data_45.xlsx"
+data = "test_gaussian_data_20.xlsx"
 L = LoadDataExcel(data)
 S = L.ele_signals()
 times = L.time_data()
@@ -56,8 +56,8 @@ v_min = 0.4
 v_max = 2
 corr_threshold = 0.75
 
-ele_1 = 3
-ele_2 = 6
+ele_1 = 2
+ele_2 = 7
 e1 = S[ele_1]
 e2 = S[ele_2]
 peaks1, _ = sps.find_peaks(e1, height = 0.9)
@@ -68,8 +68,8 @@ peak_time_e2 = times[peaks2][0]
 time_diff = peak_time_e2 - peak_time_e1
 print(peak_time_e1, peak_time_e2, time_diff)
 
-plt.plot(times, e1, label = "electrode 3")
-plt.plot(times, e2, label = "electrode 2")
+plt.plot(times, e1, label = "electrode 2")
+plt.plot(times, e2, label = "electrode 7")
 plt.legend()
 plt.show()
 
@@ -81,10 +81,10 @@ window_offset = ind_shifts[peak_num]
 
 e1_w, e2_w = A.windowSignal(e1, e2, window_offset)
 
-plt.plot(times, e1, label = "electrode 3")
-plt.plot(times, e1_w, label = "electrode 3 windowed")
-plt.plot(times, e2, label = "electrode 2")
-plt.plot(times, e2_w, label = "electrode 2 windowed")
+plt.plot(times, e1, label = "electrode 2")
+plt.plot(times, e1_w, label = "electrode 2 windowed")
+plt.plot(times, e2, label = "electrode 3")
+plt.plot(times, e2_w, label = "electrode 3 windowed")
 #plt.plot(times, padded_kaiser, label = "kaiser window")
 #plt.vlines((250 - 407/2) * 20/1000, 0, 1, color = 'black', label = "min time of window")
 #plt.vlines((250 + 407/2) * 20/1000, 0, 1, color = 'black', label = "max time of window")
@@ -148,15 +148,15 @@ print(best_timeDelay)
 
 #print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
 
-velocity_vector, _ = A.electrodePairVelocity(3, 2, v_min, v_max, ind_shifts[peak_num], corr_threshold)
-velocity_vector2, _ = A.electrodePairVelocity(3, 7, v_min, v_max, ind_shifts[peak_num], corr_threshold)
+velocity_vector, _ = A.electrodePairVelocity(2, 3, v_min, v_max, ind_shifts[peak_num], corr_threshold)
+velocity_vector2, _ = A.electrodePairVelocity(2, 6, v_min, v_max, ind_shifts[peak_num], corr_threshold)
 print("CHECK", velocity_vector, velocity_vector2)
-
-v_guess = A.guessVelocity(3, 7, 2, v_min, v_max, peak_num, corr_threshold)
+#%%
+v_guess = A.guessVelocity_LSQ(0, 6, 9, v_min, v_max, peak_num, corr_threshold)
 
 #%%
 
-data = "test_gaussian_data_30.xlsx"
+data = "test_gaussian_data_70.xlsx"
 
 A = AnalyseDataExcel(data)
 peak_num = 0
@@ -219,104 +219,104 @@ plt.show()
 
 #%%
 
-data = "test_gaussian_data_45.xlsx"
+# data = "test_gaussian_data_45.xlsx"
 
-A = AnalyseDataExcel(data)
-peak_num = 0
-num_vectors = 0.9
-v_min = 0.4
-v_max = 2
+# A = AnalyseDataExcel(data)
+# peak_num = 0
+# num_vectors = 0.9
+# v_min = 0.4
+# v_max = 2
 
-# List of e1 values to plot
-e1_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # Replace with the actual range or list of e1 values
+# # List of e1 values to plot
+# e1_values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # Replace with the actual range or list of e1 values
 
-# Set up the figure and color map
-plt.figure(figsize=(12, 6))  # Adjust the figure size
-cmap = plt.cm.viridis
+# # Set up the figure and color map
+# plt.figure(figsize=(12, 6))  # Adjust the figure size
+# cmap = plt.cm.viridis
 
-# Electrode positions
-electrode_x = [0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12]
-electrode_y = [0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12]
+# # Electrode positions
+# electrode_x = [0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12]
+# electrode_y = [0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12, 0, 4, 8, 12]
 
-# Initialize variables to track global min/max for axis limits
-global_x_min, global_x_max = float('inf'), float('-inf')
-global_y_min, global_y_max = float('inf'), float('-inf')
+# # Initialize variables to track global min/max for axis limits
+# global_x_min, global_x_max = float('inf'), float('-inf')
+# global_y_min, global_y_max = float('inf'), float('-inf')
 
-# Collect all max_RXY values for normalization
-all_max_RXY = []
+# # Collect all max_RXY values for normalization
+# all_max_RXY = []
 
-for e1 in e1_values:
-    # Call the velocityMap function to get data
-    _, _, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
-    all_max_RXY.extend(max_RXY_arr)
+# for e1 in e1_values:
+#     # Call the velocityMap function to get data
+#     _, _, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
+#     all_max_RXY.extend(max_RXY_arr)
 
-# Define normalization for color mapping
-norm = plt.Normalize(vmin=np.min(all_max_RXY), vmax=np.max(all_max_RXY))
+# # Define normalization for color mapping
+# norm = plt.Normalize(vmin=np.min(all_max_RXY), vmax=np.max(all_max_RXY))
 
-vectors_arr = []
-vector_magnitudes = []
+# vectors_arr = []
+# vector_magnitudes = []
 
-# Loop through e1 values to plot vectors
-for e1 in e1_values:
-    # Call the velocityMap function
-    vectors, origin, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
+# # Loop through e1 values to plot vectors
+# for e1 in e1_values:
+#     # Call the velocityMap function
+#     vectors, origin, max_RXY_arr = A.velocityMap(e1, v_min, v_max, peak_num, num_vectors)
     
-    """CHECK VECTOR MAGNITUDE"""
-    vectors_arr.append((e1, vectors))
-    tot_vector = np.sum(vectors, axis = 1)
-    tot_vector_magnitude = np.linalg.norm(tot_vector)
-    vector_magnitudes.append(tot_vector_magnitude)
-    """CHECK VECTOR MAGNITUDE"""
+#     """CHECK VECTOR MAGNITUDE"""
+#     vectors_arr.append((e1, vectors))
+#     tot_vector = np.sum(vectors, axis = 1)
+#     tot_vector_magnitude = np.linalg.norm(tot_vector)
+#     vector_magnitudes.append(tot_vector_magnitude)
+#     """CHECK VECTOR MAGNITUDE"""
     
-    # Extract x and y components from the vectors
-    x_vectors = [v[0] for v in vectors]  # x components
-    y_vectors = [v[1] for v in vectors]  # y components
+#     # Extract x and y components from the vectors
+#     x_vectors = [v[0] for v in vectors]  # x components
+#     y_vectors = [v[1] for v in vectors]  # y components
 
-    # Create origins for all vectors
-    x_origins = [origin[0]] * len(vectors)
-    y_origins = [origin[1]] * len(vectors)
+#     # Create origins for all vectors
+#     x_origins = [origin[0]] * len(vectors)
+#     y_origins = [origin[1]] * len(vectors)
 
-    # Add quiver plot for the current e1
-    plt.quiver(
-        x_origins, y_origins, x_vectors, y_vectors,
-        max_RXY_arr,  # Use magnitudes to color the vectors
-        angles='xy', scale_units='xy', scale=1,
-        cmap=cmap, norm=norm, alpha=0.6,  # Apply the normalization
-    )
+#     # Add quiver plot for the current e1
+#     plt.quiver(
+#         x_origins, y_origins, x_vectors, y_vectors,
+#         max_RXY_arr,  # Use magnitudes to color the vectors
+#         angles='xy', scale_units='xy', scale=1,
+#         cmap=cmap, norm=norm, alpha=0.6,  # Apply the normalization
+#     )
 
-    # Update global min/max for axis limits
-    x_positions = [x_orig + x_vec for x_orig, x_vec in zip(x_origins, x_vectors)]
-    y_positions = [y_orig + y_vec for y_orig, y_vec in zip(y_origins, y_vectors)]
-    global_x_min = min(global_x_min, *x_positions)
-    global_x_max = max(global_x_max, *x_positions)
-    global_y_min = min(global_y_min, *y_positions)
-    global_y_max = max(global_y_max, *y_positions)
+#     # Update global min/max for axis limits
+#     x_positions = [x_orig + x_vec for x_orig, x_vec in zip(x_origins, x_vectors)]
+#     y_positions = [y_orig + y_vec for y_orig, y_vec in zip(y_origins, y_vectors)]
+#     global_x_min = min(global_x_min, *x_positions)
+#     global_x_max = max(global_x_max, *x_positions)
+#     global_y_min = min(global_y_min, *y_positions)
+#     global_y_max = max(global_y_max, *y_positions)
 
-# Plot electrode positions
-plt.plot(electrode_x, electrode_y, "o", label="Electrodes", color="red")
+# # Plot electrode positions
+# plt.plot(electrode_x, electrode_y, "o", label="Electrodes", color="red")
 
-# Add a colorbar
-cbar = plt.colorbar(pad=0.15)
-cbar.set_label('Cross-Correlation')
+# # Add a colorbar
+# cbar = plt.colorbar(pad=0.15)
+# cbar.set_label('Cross-Correlation')
 
-# Set dynamic axis limits based on global min/max of vectors
-plt.xlim(global_x_min - 1, global_x_max + 1)
-plt.ylim(global_y_min - 1, global_y_max + 1)
+# # Set dynamic axis limits based on global min/max of vectors
+# plt.xlim(global_x_min - 1, global_x_max + 1)
+# plt.ylim(global_y_min - 1, global_y_max + 1)
 
-plt.axhline(0, color='black', linewidth=0.5)
-plt.axvline(0, color='black', linewidth=0.5)
-plt.grid()
+# plt.axhline(0, color='black', linewidth=0.5)
+# plt.axvline(0, color='black', linewidth=0.5)
+# plt.grid()
 
-# Label the plot
-plt.title("Velocity Plot for Left Column of Electrodes")
-plt.xlabel("x-position (a.u.)")
-plt.ylabel("y-position (a.u.)")
+# # Label the plot
+# plt.title("Velocity Plot for Left Column of Electrodes")
+# plt.xlabel("x-position (a.u.)")
+# plt.ylabel("y-position (a.u.)")
 
-# Add the legend outside the plot
-plt.legend(loc='upper right', bbox_to_anchor=(1.2, 1))  # Adjust legend position
+# # Add the legend outside the plot
+# plt.legend(loc='upper right', bbox_to_anchor=(1.2, 1))  # Adjust legend position
 
-# Adjust layout to prevent overlap between elements
-plt.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space for the legend
+# # Adjust layout to prevent overlap between elements
+# plt.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space for the legend
 
-# Show the plot
-plt.show()
+# # Show the plot
+# plt.show()
