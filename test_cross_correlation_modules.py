@@ -108,15 +108,13 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         
         self.sigSampFreq = 2034.5 #units of Hz
         self.sigSampInterval = 1/self.sigSampFreq
-        #self.minVelocity, self.maxVelocity = velocityRange[0], velocityRange[1]
-        #self.minAngle, self.maxAngle = angleRange[0], angleRange[1]
+        self.window_length = 814 #number of indices
     
-    def findEGMPeak(self, e1, window_length = 814, height_threshold = 0.5, distance_threshold = 300):
+    def findEGMPeak(self, e1, height_threshold = 0.5, distance_threshold = 300):
         """
         This function finds the peaks in the EGM signal and outputs indices to apply the kaiser window
         Input:
         - e1 = time series for first electrode
-        - window_length = index length of window
         - height_threshold = minimum signal height to identify peak
         - distance_threshold = minimum peak separation for it to be counted
         
@@ -126,16 +124,15 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         Can modify function to include z-coordinate later
         """
         peaks, properties = sps.find_peaks(e1, height = height_threshold, distance = distance_threshold)
-        ind_shifts = [peak_index - window_length // 2 for peak_index in peaks]
+        ind_shifts = [peak_index - self.window_length // 2 for peak_index in peaks]
         return ind_shifts
     
-    def windowSignal(self, e1, e2, ind_shift, window_length = 814):
+    def windowSignal(self, e1, e2, ind_shift):
         """
         This function windows the signals by applying a kaiser window
         Input:
         - e1 = time series for first electrode
         - e2 = time series for second electrode
-        - window_length = index length of window
         
         Output: 
         - e1_windowed = 1D array of windowed time series for first electrode
@@ -154,7 +151,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 padded_window[start:end] = window[w_start:w_end]
             return padded_window
         N = len(e1)
-        kaiser_window = kaiser(window_length, beta = 0)
+        kaiser_window = kaiser(self.window_length, beta = 0)
         padded_kaiser = shift_window(N, kaiser_window, ind_shift)
         e1_windowed = e1 * padded_kaiser
         e2_windowed = e2 * padded_kaiser
@@ -257,100 +254,6 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
 
         return velocity_vector, max_RXY
-    
-    def guessVelocity_ORTHOGONAL(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
-        """
-        This function combines two vectors measured from two electrodes with respect to a reference electrode
-        NOTE: THIS FUNCTION ONLY WORKS IF ele_num1 AND ele_num2 ARE ORTHOGONAL TO EACH OTHER
-        Input:
-        - ref_ele_num = number for reference electrode (0 - 15)
-        - ele_num1 = number for first electrode (one above or to right of reference electrode)
-        - ele_num2 = number for second electrode (one above or to right of reference electrode)
-        - minVelocity = minimum allowable velocity
-        - maxVelocity = maximum allowable velocity
-        
-        Output: velocity vector estimate
-        - Row 1 = x-component of velocity
-        - Row 2 = y-component of velocity
-        """
-        e1 = self.signals[ref_ele_num]
-        ind_shifts = self.findEGMPeak(e1)
-        ind_shift = ind_shifts[peak_num]
-        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
-        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
-        
-        sum_vector = velocity1 + velocity2
-        norm = np.linalg.norm(sum_vector)
-        sum_unit_vector = (1/norm) * sum_vector
-        """
-        FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
-        SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
-        ELSE: USE SIMILAR TRIANGLE TRIGONOMETRY TO WORK OUT WHAT THE VELOCITY VECTOR IS (ASSUMING ELECTRODE MEASURES A PLANE WAVE)
-        """
-        if sum_vector[0] == velocity1[0] and sum_vector[1] == velocity1[1]:
-            v_guess = velocity1
-            print("v1")
-        elif sum_vector[0] == velocity2[0] and sum_vector[1] == velocity2[1]:
-            v_guess = velocity2
-            print("v2")
-        else:
-            measured_ang1, measured_ang2 = np.arccos(sum_unit_vector[0]), np.arcsin(sum_unit_vector[1])
-            propagation_ang1, propagation_ang2 = np.pi/2 - measured_ang1, np.pi/2 - measured_ang2
-            guess_unit_vector = np.array([np.cos(propagation_ang1), np.sin(propagation_ang2)])
-            # calculate velocity vector magnitude
-            v_mag_guess = np.multiply(sum_vector, guess_unit_vector) # vector form of v = v1 * cos(alpha) and v = v2 * sin(alpha)
-            print(np.degrees(propagation_ang1), np.degrees(propagation_ang2), v_mag_guess)
-            # calculate velocity vector
-            v_guess = np.multiply(v_mag_guess, guess_unit_vector) # calculate v * (cos(alpha), sin(alpha))
-        return v_guess
-    
-    def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
-        """
-        This function combines two vectors measured from two electrodes with respect to a reference electrode
-        NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
-        Input:
-        - ref_ele_num = number for reference electrode (0 - 15)
-        - ele_num1 = number for first electrode
-        - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
-        - minVelocity = minimum allowable velocity
-        - maxVelocity = maximum allowable velocity
-        
-        Output: velocity vector estimate
-        - Row 1 = x-component of velocity
-        - Row 2 = y-component of velocity
-        """
-        e1 = self.signals[ref_ele_num]
-        ind_shifts = self.findEGMPeak(e1)
-        ind_shift = ind_shifts[peak_num]
-        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
-        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
-        
-        wavefront_vector = velocity2 - velocity1
-        norm = np.linalg.norm(wavefront_vector)
-        wavefront_unit_vector = (1/norm) * wavefront_vector
-        """
-        FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
-        SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
-        ELSE: USE VECTOR MATH TO CALCULATE VELOCITY VECTOR
-        """
-        if wavefront_vector[0] == -velocity1[0] and wavefront_vector[1] == -velocity1[1]:
-            v_guess = velocity1
-        elif wavefront_vector[0] == velocity2[0] and wavefront_vector[1] == velocity2[1]:
-            v_guess = velocity2
-        else:
-            rotation_matrix = np.array([[0, 1], [-1, 0]])
-            guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
-            velocity1_mag = np.linalg.norm(velocity1)
-            velocity2_mag = np.linalg.norm(velocity2)
-
-            v_mag_guess1 = np.dot(velocity1, guess_unit_vector)
-            v_mag_guess2 = np.dot(velocity2, guess_unit_vector)
-            
-            #in case they are different, usually they are very similar
-            v_mag_guess = (v_mag_guess1 + v_mag_guess2) / 2
-            v_guess = v_mag_guess * guess_unit_vector
-            print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
-        return v_guess
 
     def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold, alpha = 0.1, tolerance = 1e-6, max_iterations = 1000):
         """
@@ -415,50 +318,6 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
             print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
         return v_guess
     
-    def velocityMap(self, ref_ele_num, minVelocity, maxVelocity, peak_num, num_vector):
-        """
-        This function calculates wave velocities for each pair of electrodes
-        Input:
-        - ref_ele_num = reference electrode in the pair
-        - maxVelocity = maximum allowable velocity
-        - peak_num = which peak in intracardiac electrogram to calculate velocity
-        - num_vector = top num_vector vectors with the highest cross-correlation are plotted
-        
-        Output: 
-        - velocity_vectors = list of velocity vectors
-        - origin = location of reference electrode
-        
-        Can modify function to include z-coordinate later
-        """
-        e1 = self.signals[ref_ele_num]
-        origin = self.coord[ref_ele_num]
-        ele_nums = np.arange(0, 16, 1)
-        ele_nums = np.delete(ele_nums, ref_ele_num)
-        velocity_vectors = []
-        max_RXY_arr = []
-        ind_shifts = self.findEGMPeak(e1)
-        ind_shift = ind_shifts[peak_num]
-        for ele_num in ele_nums:
-            d_vector = self.coord[ele_num] - self.coord[ref_ele_num]
-            d_mag = np.linalg.norm(d_vector)
-            if d_mag <= 4 * np.sqrt(2):
-                # FOR SPECIFIC PEAK
-                ind_shifts = self.findEGMPeak(e1)
-                ind_shift = ind_shifts[peak_num]
-                
-                velocity_vector, max_RXY = self.velocity(ref_ele_num, ele_num, minVelocity, maxVelocity, ind_shift)
-                """"FOR CONVENIENCE SO I DON'T HAVE TO CONSTANTLY CHANGE THE FUNCTION INPUT"""
-                corr_threshold = num_vector
-                
-                if max_RXY > corr_threshold:
-                    velocity_vectors.append(velocity_vector)
-                    print(ref_ele_num, ele_num, velocity_vector, max_RXY)
-                    max_RXY_arr.append(max_RXY)
-                else:
-                    velocity_vectors.append(np.zeros(2))
-                    max_RXY_arr.append(0)
-        return velocity_vectors, origin, max_RXY_arr
-    
     def velocityGuessMap(self, minVelocity, maxVelocity, peak_num, corr_threshold):
         origins = []
         velocity_vectors = []
@@ -482,6 +341,144 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 velocity_vectors.append(v_guess)
                 ref_ele_num -= 1
         return velocity_vectors, origins
+    
+    # def guessVelocity_ORTHOGONAL(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
+    #     """
+    #     This function combines two vectors measured from two electrodes with respect to a reference electrode
+    #     NOTE: THIS FUNCTION ONLY WORKS IF ele_num1 AND ele_num2 ARE ORTHOGONAL TO EACH OTHER
+    #     Input:
+    #     - ref_ele_num = number for reference electrode (0 - 15)
+    #     - ele_num1 = number for first electrode (one above or to right of reference electrode)
+    #     - ele_num2 = number for second electrode (one above or to right of reference electrode)
+    #     - minVelocity = minimum allowable velocity
+    #     - maxVelocity = maximum allowable velocity
+        
+    #     Output: velocity vector estimate
+    #     - Row 1 = x-component of velocity
+    #     - Row 2 = y-component of velocity
+    #     """
+    #     e1 = self.signals[ref_ele_num]
+    #     ind_shifts = self.findEGMPeak(e1)
+    #     ind_shift = ind_shifts[peak_num]
+    #     velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+    #     velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        
+    #     sum_vector = velocity1 + velocity2
+    #     norm = np.linalg.norm(sum_vector)
+    #     sum_unit_vector = (1/norm) * sum_vector
+    #     """
+    #     FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
+    #     SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
+    #     ELSE: USE SIMILAR TRIANGLE TRIGONOMETRY TO WORK OUT WHAT THE VELOCITY VECTOR IS (ASSUMING ELECTRODE MEASURES A PLANE WAVE)
+    #     """
+    #     if sum_vector[0] == velocity1[0] and sum_vector[1] == velocity1[1]:
+    #         v_guess = velocity1
+    #         print("v1")
+    #     elif sum_vector[0] == velocity2[0] and sum_vector[1] == velocity2[1]:
+    #         v_guess = velocity2
+    #         print("v2")
+    #     else:
+    #         measured_ang1, measured_ang2 = np.arccos(sum_unit_vector[0]), np.arcsin(sum_unit_vector[1])
+    #         propagation_ang1, propagation_ang2 = np.pi/2 - measured_ang1, np.pi/2 - measured_ang2
+    #         guess_unit_vector = np.array([np.cos(propagation_ang1), np.sin(propagation_ang2)])
+    #         # calculate velocity vector magnitude
+    #         v_mag_guess = np.multiply(sum_vector, guess_unit_vector) # vector form of v = v1 * cos(alpha) and v = v2 * sin(alpha)
+    #         print(np.degrees(propagation_ang1), np.degrees(propagation_ang2), v_mag_guess)
+    #         # calculate velocity vector
+    #         v_guess = np.multiply(v_mag_guess, guess_unit_vector) # calculate v * (cos(alpha), sin(alpha))
+    #     return v_guess
+    
+    # def guessVelocity(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
+    #     """
+    #     This function combines two vectors measured from two electrodes with respect to a reference electrode
+    #     NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
+    #     Input:
+    #     - ref_ele_num = number for reference electrode (0 - 15)
+    #     - ele_num1 = number for first electrode
+    #     - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
+    #     - minVelocity = minimum allowable velocity
+    #     - maxVelocity = maximum allowable velocity
+        
+    #     Output: velocity vector estimate
+    #     - Row 1 = x-component of velocity
+    #     - Row 2 = y-component of velocity
+    #     """
+    #     e1 = self.signals[ref_ele_num]
+    #     ind_shifts = self.findEGMPeak(e1)
+    #     ind_shift = ind_shifts[peak_num]
+    #     velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+    #     velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        
+    #     wavefront_vector = velocity2 - velocity1
+    #     norm = np.linalg.norm(wavefront_vector)
+    #     wavefront_unit_vector = (1/norm) * wavefront_vector
+    #     """
+    #     FIRST IF: CHECK FOR HORIZONTAL VELOCITY VECTOR
+    #     SECOND IF: CEHCK FOR VERTICAL VELOCITY VECTOR
+    #     ELSE: USE VECTOR MATH TO CALCULATE VELOCITY VECTOR
+    #     """
+    #     if wavefront_vector[0] == -velocity1[0] and wavefront_vector[1] == -velocity1[1]:
+    #         v_guess = velocity1
+    #     elif wavefront_vector[0] == velocity2[0] and wavefront_vector[1] == velocity2[1]:
+    #         v_guess = velocity2
+    #     else:
+    #         rotation_matrix = np.array([[0, 1], [-1, 0]])
+    #         guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
+    #         velocity1_mag = np.linalg.norm(velocity1)
+    #         velocity2_mag = np.linalg.norm(velocity2)
+
+    #         v_mag_guess1 = np.dot(velocity1, guess_unit_vector)
+    #         v_mag_guess2 = np.dot(velocity2, guess_unit_vector)
+            
+    #         #in case they are different, usually they are very similar
+    #         v_mag_guess = (v_mag_guess1 + v_mag_guess2) / 2
+    #         v_guess = v_mag_guess * guess_unit_vector
+    #         print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
+    #     return v_guess
+    
+    # def velocityMap(self, ref_ele_num, minVelocity, maxVelocity, peak_num, num_vector):
+    #     """
+    #     This function calculates wave velocities for each pair of electrodes
+    #     Input:
+    #     - ref_ele_num = reference electrode in the pair
+    #     - maxVelocity = maximum allowable velocity
+    #     - peak_num = which peak in intracardiac electrogram to calculate velocity
+    #     - num_vector = top num_vector vectors with the highest cross-correlation are plotted
+        
+    #     Output: 
+    #     - velocity_vectors = list of velocity vectors
+    #     - origin = location of reference electrode
+        
+    #     Can modify function to include z-coordinate later
+    #     """
+    #     e1 = self.signals[ref_ele_num]
+    #     origin = self.coord[ref_ele_num]
+    #     ele_nums = np.arange(0, 16, 1)
+    #     ele_nums = np.delete(ele_nums, ref_ele_num)
+    #     velocity_vectors = []
+    #     max_RXY_arr = []
+    #     ind_shifts = self.findEGMPeak(e1)
+    #     ind_shift = ind_shifts[peak_num]
+    #     for ele_num in ele_nums:
+    #         d_vector = self.coord[ele_num] - self.coord[ref_ele_num]
+    #         d_mag = np.linalg.norm(d_vector)
+    #         if d_mag <= 4 * np.sqrt(2):
+    #             # FOR SPECIFIC PEAK
+    #             ind_shifts = self.findEGMPeak(e1)
+    #             ind_shift = ind_shifts[peak_num]
+                
+    #             velocity_vector, max_RXY = self.velocity(ref_ele_num, ele_num, minVelocity, maxVelocity, ind_shift)
+    #             """"FOR CONVENIENCE SO I DON'T HAVE TO CONSTANTLY CHANGE THE FUNCTION INPUT"""
+    #             corr_threshold = num_vector
+                
+    #             if max_RXY > corr_threshold:
+    #                 velocity_vectors.append(velocity_vector)
+    #                 print(ref_ele_num, ele_num, velocity_vector, max_RXY)
+    #                 max_RXY_arr.append(max_RXY)
+    #             else:
+    #                 velocity_vectors.append(np.zeros(2))
+    #                 max_RXY_arr.append(0)
+    #     return velocity_vectors, origin, max_RXY_arr
     
     # def fractionalShift(self, max_index, best_indexDelay):
     #     """
