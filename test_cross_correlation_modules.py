@@ -103,12 +103,15 @@ class LoadDataExcel:
 
 #%%
 class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
-    def __init__(self, fileName): #velocity in mm/s angles in radians
+    def __init__(self, fileName, minVelocity, maxVelocity, corr_threshold): #velocity in mm/s angles in radians
         LoadDataExcel.__init__(self, fileName)
         
         self.sigSampFreq = 2034.5 #units of Hz
         self.sigSampInterval = 1/self.sigSampFreq
         self.window_length = 814 #number of indices
+        self.minVelocity = minVelocity
+        self.maxVelocity = maxVelocity
+        self.corr_threshold = corr_threshold
     
     def findEGMPeak(self, e1, height_threshold = 0.5, distance_threshold = 300):
         """
@@ -175,7 +178,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         index_delays = sps.correlation_lags(len(e1), len(e2), mode = "full")
         return RXY, index_delays
 
-    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay, corr_threshold):
+    def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay):
         """
         This function finds the time delay that maximises cross-correlation
         Non-sensical time delays are filtered out by setting it to infinity if the index shift is 0
@@ -213,13 +216,13 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
             best_indexDelay = index_delays[neg_max_index]
             max_RXY = RXY[neg_max_index]
             
-        if max_RXY < corr_threshold:
+        if max_RXY < self.corr_threshold:
             best_timeDelay = np.inf
         else:
             best_timeDelay = best_indexDelay/self.sigSampFreq
         return best_timeDelay, max_RXY
     
-    def electrodePairVelocity(self, ele_num1, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold):
+    def electrodePairVelocity(self, ele_num1, ele_num2, ind_shift):
         """
         This function creates a vector for wave velocity between pair of electrodes in m/s
         Input:
@@ -236,8 +239,8 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         d_vector = self.coord[ele_num2] - self.coord[ele_num1]
         d_mag = np.linalg.norm(d_vector)
 
-        minTimeDelay = d_mag * 0.001 /maxVelocity
-        maxTimeDelay = d_mag * 0.001 /minVelocity
+        minTimeDelay = d_mag * 0.001 /self.maxVelocity
+        maxTimeDelay = d_mag * 0.001 /self.minVelocity
         
         e1 = self.signals[ele_num1]
         e2 = self.signals[ele_num2]
@@ -246,7 +249,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
 
         RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
-        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay, corr_threshold)
+        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
         
         speed = d_mag/best_t_delay
         direction_unit_vector = d_vector/d_mag
@@ -254,11 +257,10 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
 
         return velocity_vector, max_RXY
-
-    def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold, alpha = 0.1, tolerance = 1e-6, max_iterations = 1000):
+    
+    def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, peak_num):
         """
         This function combines two vectors measured from two electrodes with respect to a reference electrode
-        Velocity magnitude is guessed using least squares minimisation
         NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
         Input:
         - ref_ele_num = number for reference electrode (0 - 15)
@@ -266,11 +268,9 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
         - minVelocity = minimum allowable velocity
         - maxVelocity = maximum allowable velocity
-        - corr_threshold = minimum allowable cross-correlation for valid time delay
-        - alpha = learning rate
-        - tolerance = maximum allowable error
-        - max_iterations = maximum number of iterations to compute least squares
-        
+        - peak_num = which peak to window the time-series signal around
+        - corr_threshold = minimum correlation threshold for acceptable time delays
+    
         Output: velocity vector estimate
         - Row 1 = x-component of velocity
         - Row 2 = y-component of velocity
@@ -278,10 +278,11 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         e1 = self.signals[ref_ele_num]
         ind_shifts = self.findEGMPeak(e1)
         ind_shift = ind_shifts[peak_num]
-        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
-        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, ind_shift)
+        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, ind_shift)
         
         wavefront_vector = velocity2 - velocity1
+        print(wavefront_vector, velocity2, velocity1)
         norm = np.linalg.norm(wavefront_vector)
         wavefront_unit_vector = (1 / norm) * wavefront_vector
     
@@ -292,33 +293,31 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         else:
             rotation_matrix = np.array([[0, 1], [-1, 0]])
             guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
-
-            cos_theta1 = np.dot(velocity1, guess_unit_vector) / np.linalg.norm(velocity1)
-            cos_theta2 = np.dot(velocity2, guess_unit_vector) / np.linalg.norm(velocity2)
+    
+            # Loss function
+            def loss(v_mag_guess):
+                cos_theta1 = np.dot(velocity1, guess_unit_vector) / np.linalg.norm(velocity1)
+                cos_theta2 = np.dot(velocity2, guess_unit_vector) / np.linalg.norm(velocity2)
+                ans = (v_mag_guess - magnitude1 * cos_theta1)**2 + (v_mag_guess - magnitude2 * cos_theta2)**2
+                return ans
             
             magnitude1 = np.linalg.norm(velocity1)
             magnitude2 = np.linalg.norm(velocity2)
-    
-            # Gradient descent for minimization
-            v_mag_guess = (magnitude1 + magnitude2) / 2  # Initial guess
-            
-            for iteration in range(max_iterations):
-                # Compute gradient of the loss function
-                gradient = 2 * (v_mag_guess - magnitude1 * cos_theta1) + 2 * (v_mag_guess - magnitude2 * cos_theta2)
-                
-                # Update velocity magnitude guess
-                v_mag_guess -= alpha * gradient
-                
-                # Check for convergence
-                if abs(gradient) < tolerance:
-                    break
-            
-            # Compute final velocity vector
+            initial_guess = (magnitude1 + magnitude2) / 2
+
+            m = Minuit(loss, v_mag_guess=initial_guess)
+            m.limits["v_mag_guess"] = (-self.maxVelocity, self.maxVelocity)  # Velocity limits (-2 to 2 m/s)
+            m.errordef = Minuit.LEAST_SQUARES  # Least-squares error definition
+            m.migrad()
+
+            v_mag_guess = m.values["v_mag_guess"]
+
             v_guess = v_mag_guess * guess_unit_vector
+    
             print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
         return v_guess
     
-    def velocityGuessMap(self, minVelocity, maxVelocity, peak_num, corr_threshold):
+    def velocityGuessMap(self, peak_num):
         origins = []
         velocity_vectors = []
         for ref_ele_num in range(3):
@@ -328,7 +327,7 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 
                 ele_1 = ref_ele_num + 4
                 ele_2 = ref_ele_num + 1
-                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
+                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
                 
                 ref_ele_num += 5
@@ -337,10 +336,73 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
                 
                 ele_1 = ref_ele_num - 4
                 ele_2 = ref_ele_num - 1 
-                v_guess = self.guessVelocity(ref_ele_num, ele_1, ele_2, minVelocity, maxVelocity, peak_num, corr_threshold)
+                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
                 ref_ele_num -= 1
         return velocity_vectors, origins
+    
+    # def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold, alpha = 0.1, tolerance = 1e-6, max_iterations = 1000):
+    #     """
+    #     This function combines two vectors measured from two electrodes with respect to a reference electrode
+    #     Velocity magnitude is guessed using least squares minimisation
+    #     NOTE: THIS FUNCTION ONLY WORKS IF ele_num2 IS ABOVE ele_num1
+    #     Input:
+    #     - ref_ele_num = number for reference electrode (0 - 15)
+    #     - ele_num1 = number for first electrode
+    #     - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
+    #     - minVelocity = minimum allowable velocity
+    #     - maxVelocity = maximum allowable velocity
+    #     - corr_threshold = minimum allowable cross-correlation for valid time delay
+    #     - alpha = learning rate
+    #     - tolerance = maximum allowable error
+    #     - max_iterations = maximum number of iterations to compute least squares
+        
+    #     Output: velocity vector estimate
+    #     - Row 1 = x-component of velocity
+    #     - Row 2 = y-component of velocity
+    #     """
+    #     e1 = self.signals[ref_ele_num]
+    #     ind_shifts = self.findEGMPeak(e1)
+    #     ind_shift = ind_shifts[peak_num]
+    #     velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, minVelocity, maxVelocity, ind_shift, corr_threshold)
+    #     velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, minVelocity, maxVelocity, ind_shift, corr_threshold)
+        
+    #     wavefront_vector = velocity2 - velocity1
+    #     norm = np.linalg.norm(wavefront_vector)
+    #     wavefront_unit_vector = (1 / norm) * wavefront_vector
+    
+    #     if wavefront_vector[0] == -velocity1[0] and wavefront_vector[1] == -velocity1[1]:
+    #         v_guess = velocity1
+    #     elif wavefront_vector[0] == velocity2[0] and wavefront_vector[1] == velocity2[1]:
+    #         v_guess = velocity2
+    #     else:
+    #         rotation_matrix = np.array([[0, 1], [-1, 0]])
+    #         guess_unit_vector = np.dot(rotation_matrix, wavefront_unit_vector)
+
+    #         cos_theta1 = np.dot(velocity1, guess_unit_vector) / np.linalg.norm(velocity1)
+    #         cos_theta2 = np.dot(velocity2, guess_unit_vector) / np.linalg.norm(velocity2)
+            
+    #         magnitude1 = np.linalg.norm(velocity1)
+    #         magnitude2 = np.linalg.norm(velocity2)
+    
+    #         # Gradient descent for minimization
+    #         v_mag_guess = (magnitude1 + magnitude2) / 2  # Initial guess
+            
+    #         for iteration in range(max_iterations):
+    #             # Compute gradient of the loss function
+    #             gradient = 2 * (v_mag_guess - magnitude1 * cos_theta1) + 2 * (v_mag_guess - magnitude2 * cos_theta2)
+                
+    #             # Update velocity magnitude guess
+    #             v_mag_guess -= alpha * gradient
+                
+    #             # Check for convergence
+    #             if abs(gradient) < tolerance:
+    #                 break
+            
+    #         # Compute final velocity vector
+    #         v_guess = v_mag_guess * guess_unit_vector
+    #         print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
+    #     return v_guess
     
     # def guessVelocity_ORTHOGONAL(self, ref_ele_num, ele_num1, ele_num2, minVelocity, maxVelocity, peak_num, corr_threshold):
     #     """

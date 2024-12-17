@@ -31,7 +31,7 @@ sys.path.append('/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/
 
 #%%
 
-data = "test_gaussian_data_20.xlsx"
+data = "test_gaussian_data_10_1200.xlsx"
 L = LoadDataExcel(data)
 S = L.ele_signals()
 times = L.time_data()
@@ -49,15 +49,17 @@ plt.show()
 
 
 #%%
-A = AnalyseDataExcel(data)
+
 peak_num = 0
 num_vectors = 3
-v_min = 0.4
-v_max = 2
+v_min = 0.35
+v_max = 8.5
 corr_threshold = 0.75
 
+A = AnalyseDataExcel(data, v_min, v_max, corr_threshold)
+
 ele_1 = 2
-ele_2 = 7
+ele_2 = 3
 e1 = S[ele_1]
 e2 = S[ele_2]
 peaks1, _ = sps.find_peaks(e1, height = 0.9)
@@ -83,8 +85,8 @@ e1_w, e2_w = A.windowSignal(e1, e2, window_offset)
 
 plt.plot(times, e1, label = "electrode 2")
 plt.plot(times, e1_w, label = "electrode 2 windowed")
-plt.plot(times, e2, label = "electrode 3")
-plt.plot(times, e2_w, label = "electrode 3 windowed")
+plt.plot(times, e2, label = "electrode 7")
+plt.plot(times, e2_w, label = "electrode 7 windowed")
 #plt.plot(times, padded_kaiser, label = "kaiser window")
 #plt.vlines((250 - 407/2) * 20/1000, 0, 1, color = 'black', label = "min time of window")
 #plt.vlines((250 + 407/2) * 20/1000, 0, 1, color = 'black', label = "max time of window")
@@ -94,15 +96,17 @@ plt.show()
 #%%
 # Perform correlation
 RXY, index_delays = A.simpleCorrelate(e1_w, e2_w)
-peaksRXY, _ = sps.find_peaks(RXY, height = 0.9)
+peaksRXY, _ = sps.find_peaks(RXY, height = 0.7)
 print(peaksRXY)
 peak_index_e1 = index_delays[peaksRXY[0]]
-print(peak_index_e1)
 peakRXY_val = RXY[peaksRXY[0]]
-print(peak_index_e1, peakRXY_val)
-plt.plot(index_delays, RXY)
-plt.plot(peak_index_e1, peakRXY_val, "o")
+print(peak_index_e1 / (2034.5), peakRXY_val)
+plt.plot(index_delays / (2034.5), RXY)
+plt.plot(peak_index_e1 / (2034.5), peakRXY_val, "o")
+plt.xlabel("Time (s)")
+plt.ylabel("RXY")
 plt.show()
+print("velocity guess", 4/(peak_index_e1 / (2034.5)) * 0.001)
 
 #%%
 
@@ -117,7 +121,7 @@ time_y = np.linspace(np.min(RXY), np.max(RXY), 50)
 
 # Find the best time delay and its corresponding RXY value
 
-best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay, maxTimeDelay, corr_threshold)
+best_timeDelay, max_RXY = A.maxRXY_timeDelay(RXY, index_delays, minTimeDelay, maxTimeDelay)
 #print(best_timeDelay, max_RXY)
 print("CALCULATED", best_timeDelay, "EXPECTED", time_diff)
 
@@ -148,25 +152,25 @@ print(best_timeDelay)
 
 #print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
 
-velocity_vector, _ = A.electrodePairVelocity(2, 3, v_min, v_max, ind_shifts[peak_num], corr_threshold)
-velocity_vector2, _ = A.electrodePairVelocity(2, 6, v_min, v_max, ind_shifts[peak_num], corr_threshold)
+velocity_vector, _ = A.electrodePairVelocity(2, 3, ind_shifts[peak_num])
+velocity_vector2, _ = A.electrodePairVelocity(2, 6, ind_shifts[peak_num])
 print("CHECK", velocity_vector, velocity_vector2)
 #%%
-v_guess = A.guessVelocity_LSQ(0, 6, 9, v_min, v_max, peak_num, corr_threshold)
+v_guess = A.guessVelocity_LSQ1(0, 6, 9, peak_num)
 
 #%%
 
-data = "test_gaussian_data_70.xlsx"
+data = "test_gaussian_data_5_400.xlsx"
 
-A = AnalyseDataExcel(data)
 peak_num = 0
 num_vectors = 0.9
-v_min = 0.4
-v_max = 2
+v_min = 0.35
+v_max = 8.5
 corr_threshold = 0.75
 
+A = AnalyseDataExcel(data, v_min, v_max, corr_threshold)
 # Your existing code to compute vectors and origins
-vectors, origins = A.velocityGuessMap(v_min, v_max, peak_num, corr_threshold)
+vectors, origins = A.velocityGuessMap(peak_num)
 
 x_origins = [x[0] for x in origins]
 y_origins = [x[1] for x in origins]
