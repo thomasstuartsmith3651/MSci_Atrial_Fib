@@ -6,6 +6,8 @@ from test_cross_correlation_modules import *
 
 #%%
 
+# single wave
+
 def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width):
     """
     Calculate the amplitude of multiple Gaussian pulses in 2D at given (x, y) coordinates.
@@ -46,9 +48,9 @@ def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width):
 
 if __name__ == "__main__":
     # Define pulse parameters
-    angle = np.radians(10)  # Propagation direction (degrees from the horizontal)
+    angle = np.radians(80)  # Propagation direction (degrees from the horizontal)
     propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
-    propagation_speed = 1200  # Speed of the pulse (mm/s)
+    propagation_speed = 500  # Speed of the pulse (mm/s)
     pulse_width = 0.5  # Width of the Gaussian pulses
 
     # Define specific coordinates to store data (mm)
@@ -63,8 +65,8 @@ if __name__ == "__main__":
     num_centers = 50  # Number of Gaussian centers
     screen_range = 12  # Range for the screen (x and y axis span)
     initial_centers = [
-        (x * np.cos(angle + np.pi/2)-1, x * np.sin(angle + np.pi/2)-1)  # Place Gaussians in a line perpendicular to propagation
-        for x in np.linspace(-screen_range-2, screen_range+2, num_centers * 2)
+        (x * np.cos(angle + np.pi/2)-2, x * np.sin(angle + np.pi/2)-2)  # Place Gaussians in a line perpendicular to propagation
+        for x in np.linspace(-screen_range-3, screen_range+3, num_centers)
     ]
 
     # Store the amplitude values for the specific coordinates
@@ -119,6 +121,135 @@ if __name__ == "__main__":
     plt.legend()
     # Show the animation
     plt.show()
+
+#%%
+
+#train of waves
+
+def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width, pulse_interval):
+    """
+    Calculate the amplitude of multiple Gaussian plane waves in 2D at a given (x, y) coordinate.
+
+    Parameters:
+        x (float or np.ndarray): x-coordinate(s) where amplitude is calculated.
+        y (float or np.ndarray): y-coordinate(s) where amplitude is calculated.
+        t (float): Time at which the amplitude is calculated.
+        centers (list of tuples): List of initial centers of the Gaussian pulses [(x0, y0), ...].
+        direction (tuple): Unit vector specifying the propagation direction (dx, dy).
+        speed (float): Speed of pulse propagation.
+        width (float): Width of the Gaussian pulses.
+        pulse_interval (float): Time interval between consecutive pulses.
+
+    Returns:
+        float or np.ndarray: Amplitude of the Gaussian pulses at the specified coordinates.
+    """
+    # Normalize the direction vector
+    dx, dy = direction
+    direction_norm = np.sqrt(dx**2 + dy**2)
+    dx /= direction_norm
+    dy /= direction_norm
+
+    # Initialize the total amplitude
+    total_amplitude = np.zeros_like(x, dtype=float)
+
+    # Compute the contribution of each active Gaussian pulse
+    num_active_pulses = int(t // pulse_interval) + 1  # Number of pulses that have been generated up to time t
+    for pulse_idx in range(num_active_pulses):
+        pulse_time = pulse_idx * pulse_interval  # Time when this pulse was generated
+        time_since_pulse = t - pulse_time  # Elapsed time for this pulse
+
+        for x0, y0 in centers:
+            # Calculate the current center of this pulse
+            x_center = x0 + dx * speed * time_since_pulse
+            y_center = y0 + dy * speed * time_since_pulse
+
+            # Compute the squared distance from the pulse center
+            distance_squared = (x - x_center)**2 + (y - y_center)**2
+
+            # Add the Gaussian amplitude for this pulse
+            total_amplitude += np.exp(-distance_squared / (2 * width**2))
+
+    return total_amplitude
+
+
+if __name__ == "__main__":
+    # Define pulse parameters
+    angle = np.radians(90)  # Propagation direction (degrees from the horizontal)
+    propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
+    propagation_speed = 400  # Speed of the pulse (mm/s)
+    pulse_width = 0.5  # Width of the Gaussian pulses
+    pulse_frequency = 50  # Frequency of the Gaussian pulses (Hz)
+    pulse_interval = 1 / pulse_frequency  # Time interval between pulses
+
+    # Generate Gaussian centers along a line perpendicular to the direction of propagation
+    num_centers = 50  # Number of Gaussian centers
+    screen_range = 12  # Range for the screen (x and y axis span)
+    initial_centers = [
+        (x * np.cos(angle + np.pi / 2)-2, x * np.sin(angle + np.pi / 2)-2)  # Centers in a line perpendicular to propagation
+        for x in np.linspace(-screen_range-3, screen_range+3, num_centers)
+    ]
+
+    # Define specific coordinates to store amplitude data
+    specific_coords = [
+        (0, 0), (0, 4), (0, 8), (0, 12),
+        (4, 0), (4, 4), (4, 8), (4, 12),
+        (8, 0), (8, 4), (8, 8), (8, 12),
+        (12, 0), (12, 4), (12, 8), (12, 12)
+    ]
+
+    # Initialize a list to store amplitude data
+    stored_data = []
+
+    # Define time steps
+    time_steps = 2000  # Number of time steps
+    sampling_frequency = 2034.5  # Sampling frequency (Hz)
+    time_increment = 1 / sampling_frequency  # Time step size
+
+    # Evaluate and store amplitudes at each time step
+    for t_step in range(time_steps):
+        time = t_step * time_increment  # Current time
+        x_coords = np.array([coord[0] for coord in specific_coords])
+        y_coords = np.array([coord[1] for coord in specific_coords])
+        amplitudes = gaussian_pulse_amplitude(x_coords, y_coords, time, initial_centers,
+                                              propagation_direction, propagation_speed, pulse_width, pulse_interval)
+        stored_data.append(list(amplitudes))
+
+    # Convert stored data into a DataFrame
+    column_names = [f"({x}, {y})" for x, y in specific_coords]
+    data_df = pd.DataFrame(stored_data, columns=column_names)
+
+    # Display first rows of the stored data
+    print(data_df.head())
+
+    # # Define coordinates to evaluate the amplitude for animation
+    # x_coords = np.linspace(0, screen_range, 100)
+    # y_coords = np.linspace(0, screen_range, 100)
+    # X, Y = np.meshgrid(x_coords, y_coords)
+
+    # # Setup the figure and axis for animation
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    # amplitude = gaussian_pulse_amplitude(X, Y, 0, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+    # contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+    # cbar = plt.colorbar(contour, ax=ax, label="Amplitude")
+    # ax.set_xlabel("x")
+    # ax.set_ylabel("y")
+    # ax.set_title("Gaussian Plane Wave Amplitude")
+
+    # # Update function for animation
+    # def update(frame):
+    #     time = frame * time_increment  # Current time for animation
+    #     amplitude = gaussian_pulse_amplitude(X, Y, time, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+    #     for coll in ax.collections:
+    #         coll.remove()  # Clear previous contours
+    #     ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+
+    # # Create animation
+    # anim = FuncAnimation(fig, update, frames=time_steps, interval=1)
+
+    # # Show the animation
+    # plt.show()
+
+
 
 #%%
 path = '/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/Year 4/MSci Project/code/MSci_Atrial_Fib/test_gaussian_data_BACKUP.xlsx'

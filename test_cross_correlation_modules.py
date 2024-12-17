@@ -103,17 +103,17 @@ class LoadDataExcel:
 
 #%%
 class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
-    def __init__(self, fileName, minVelocity, maxVelocity, corr_threshold): #velocity in mm/s angles in radians
+    def __init__(self, fileName, minVelocity, maxVelocity, window_length, corr_threshold): #velocity in mm/s angles in radians
         LoadDataExcel.__init__(self, fileName)
         
         self.sigSampFreq = 2034.5 #units of Hz
         self.sigSampInterval = 1/self.sigSampFreq
-        self.window_length = 814 #number of indices
+        self.window_length = window_length #number of indices
         self.minVelocity = minVelocity
         self.maxVelocity = maxVelocity
-        self.corr_threshold = corr_threshold
+        self.corr_threshold = corr_threshold #percentage of maximum RXY that the RXY used to compute time delay after windowing must have for the time delay to be valid
     
-    def findEGMPeak(self, e1, height_threshold = 0.5, distance_threshold = 300):
+    def findEGMPeak(self, e1, height_threshold = 0.9, distance_threshold = 1): #change to 300 for real data
         """
         This function finds the peaks in the EGM signal and outputs indices to apply the kaiser window
         Input:
@@ -173,9 +173,8 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         
         Can modify function to include z-coordinate later
         """
-        norm_factor = np.sqrt(np.sum(e1**2) * np.sum(e2**2))
-        RXY = sps.correlate(e2, e1, mode = "full", method = "direct")/norm_factor
-        index_delays = sps.correlation_lags(len(e1), len(e2), mode = "full")
+        RXY = sps.correlate(e2, e1, mode = "full", method = "direct")
+        index_delays = sps.correlation_lags(len(e2), len(e1), mode = "full")
         return RXY, index_delays
 
     def maxRXY_timeDelay(self, RXY, index_delays, minTimeDelay, maxTimeDelay):
@@ -215,8 +214,9 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         elif RXY[pos_max_index] < RXY[neg_max_index]:
             best_indexDelay = index_delays[neg_max_index]
             max_RXY = RXY[neg_max_index]
-            
-        if max_RXY < self.corr_threshold:
+        
+        RXY_threshold = self.corr_threshold * np.max(RXY) # FIND CROSS-CORRELATION THRESHOLD
+        if max_RXY < RXY_threshold:
             best_timeDelay = np.inf
         else:
             best_timeDelay = best_indexDelay/self.sigSampFreq
@@ -239,8 +239,8 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         d_vector = self.coord[ele_num2] - self.coord[ele_num1]
         d_mag = np.linalg.norm(d_vector)
 
-        minTimeDelay = d_mag * 0.001 /self.maxVelocity
-        maxTimeDelay = d_mag * 0.001 /self.minVelocity
+        minTimeDelay = d_mag * 0.001 / self.maxVelocity
+        maxTimeDelay = d_mag * 0.001 / self.minVelocity
         
         e1 = self.signals[ele_num1]
         e2 = self.signals[ele_num2]
@@ -282,7 +282,6 @@ class AnalyseDataExcel(LoadDataExcel): #perform wavelet transform on data
         velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, ind_shift)
         
         wavefront_vector = velocity2 - velocity1
-        print(wavefront_vector, velocity2, velocity1)
         norm = np.linalg.norm(wavefront_vector)
         wavefront_unit_vector = (1 / norm) * wavefront_vector
     
