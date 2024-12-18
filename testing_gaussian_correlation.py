@@ -52,7 +52,6 @@ plt.show()
 
 data = "test_gaussian_data_10_1200_50Hz.xlsx"
 peak_num = 0
-num_vectors = 3
 v_min = 0.35
 v_max = 8.5
 corr_threshold = 0.75
@@ -179,10 +178,9 @@ v_guess = A.guessVelocity_LSQ(0, 1, 5, peak_num)
 
 #%%
 
-data = "test_gaussian_data_vert_400_50Hz.xlsx"
+data = "test_gaussian_data_45.xlsx"
 
 peak_num = 0
-num_vectors = 0.9
 v_min = 0.35
 v_max = 8.5
 corr_threshold = 0.75

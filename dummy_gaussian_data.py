@@ -221,33 +221,33 @@ if __name__ == "__main__":
     # Display first rows of the stored data
     print(data_df.head())
 
-    # # Define coordinates to evaluate the amplitude for animation
-    # x_coords = np.linspace(0, screen_range, 100)
-    # y_coords = np.linspace(0, screen_range, 100)
-    # X, Y = np.meshgrid(x_coords, y_coords)
+    # Define coordinates to evaluate the amplitude for animation
+    x_coords = np.linspace(0, screen_range, 100)
+    y_coords = np.linspace(0, screen_range, 100)
+    X, Y = np.meshgrid(x_coords, y_coords)
 
-    # # Setup the figure and axis for animation
-    # fig, ax = plt.subplots(figsize=(8, 6))
-    # amplitude = gaussian_pulse_amplitude(X, Y, 0, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
-    # contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
-    # cbar = plt.colorbar(contour, ax=ax, label="Amplitude")
-    # ax.set_xlabel("x")
-    # ax.set_ylabel("y")
-    # ax.set_title("Gaussian Plane Wave Amplitude")
+    # Setup the figure and axis for animation
+    fig, ax = plt.subplots(figsize=(8, 6))
+    amplitude = gaussian_pulse_amplitude(X, Y, 0, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+    contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+    cbar = plt.colorbar(contour, ax=ax, label="Amplitude")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_title("Gaussian Plane Wave Amplitude")
 
-    # # Update function for animation
-    # def update(frame):
-    #     time = frame * time_increment  # Current time for animation
-    #     amplitude = gaussian_pulse_amplitude(X, Y, time, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
-    #     for coll in ax.collections:
-    #         coll.remove()  # Clear previous contours
-    #     ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+    # Update function for animation
+    def update(frame):
+        time = frame * time_increment  # Current time for animation
+        amplitude = gaussian_pulse_amplitude(X, Y, time, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+        for coll in ax.collections:
+            coll.remove()  # Clear previous contours
+        ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
 
-    # # Create animation
-    # anim = FuncAnimation(fig, update, frames=time_steps, interval=1)
+    # Create animation
+    anim = FuncAnimation(fig, update, frames=time_steps, interval=1)
 
-    # # Show the animation
-    # plt.show()
+    # Show the animation
+    plt.show()
 
 
 
