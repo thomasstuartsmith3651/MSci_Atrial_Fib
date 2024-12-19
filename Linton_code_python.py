@@ -7,24 +7,130 @@ Created on Tue Dec 17 11:11:29 2024
 """
 
 import numpy as np
-from scipy.io import loadmat
-import pywt
-import pandas as pd
+from scipy.signal import convolve2d
 from scipy.signal.windows import kaiser
-import scipy.interpolate as spi
-import scipy.signal as sps
-from joblib import Parallel, delayed
-import matplotlib.pyplot as plt
-from matplotlib.patches import RegularPolygon
-import mpl_toolkits.mplot3d.art3d as art3d
-from matplotlib.animation import FuncAnimation, FFMpegWriter, PillowWriter
-import pywt
-from scipy.stats import zscore
-from scipy.spatial import Voronoi, voronoi_plot_2d
-from scipy.spatial import Delaunay
-from iminuit import Minuit
-from iminuit.cost import LeastSquares
-from scipy.optimize import minimize
+
+def sgolaymm(order, frameLen, observermatrix, weights):
+    """
+    SGOLAYMM Savitzky-Golay Filter Design incorporating Measurement Model.
+    
+    Parameters:
+        order (int): Order of the polynomial fitting.
+        frameLen (int): Number of samples in each frame (must be odd and > order).
+        observermatrix (np.ndarray): Observer matrix (J states by K measurements).
+        weights (np.ndarray): Weights for least squares, size = frameLen x nMeasurements.
+    
+    Returns:
+        M3 (list): A list of matrices for each state, used for convolution with the signal.
+        P (np.ndarray): Transformation matrix P.
+        Q (np.ndarray): Transformation matrix Q.
+    """
+    debug = False
+    
+    # Validate inputs
+    if (frameLen - 1) % 2 != 0:
+        raise ValueError("frameLen must be odd.")
+    if not isinstance(order, int) or order < 0 or order >= frameLen:
+        raise ValueError("order must be a non-negative integer and less than frameLen.")
+    if weights.shape != (frameLen, observermatrix.shape[1]):
+        raise ValueError("weights must have shape (frameLen, nMeasurements).")
+    
+    H = observermatrix
+    nJ, nK = H.shape  # Number of states (rows of H) and measurements (columns of H)
+    
+    # Create Vandermonde matrix
+    z = np.arange(-(frameLen - 1) / 2, (frameLen - 1) / 2 + 1)
+    V = np.vander(z, order + 1, increasing=True)
+    
+    if debug:
+        Atest = np.random.rand(order + 1, nJ)
+        Xtest = V @ Atest
+        Ytest = Xtest @ H
+    
+    P = np.zeros(((order + 1) * nJ, frameLen * nK))
+    Q = np.zeros(((order + 1) * nJ, (order + 1) * nJ))
+    ZETAk = np.zeros((order + 1, (order + 1) * nJ))
+    
+    # Populate Q
+    for k in range(nK):
+        Wk = np.diag(weights[:, k])
+        PHIk = V.T @ Wk @ V
+        Hk = H[:, k]
+        
+        for ind in range(nJ):
+            cols = slice(ind * (order + 1), (ind + 1) * (order + 1))
+            ZETAk[:, cols] = Hk[ind] * PHIk
+        
+        for j in range(nJ):
+            rows = slice(j * (order + 1), (j + 1) * (order + 1))
+            Q[rows, :] += H[j, k] * ZETAk
+    
+    # Populate P
+    for k in range(nK):
+        Wk = np.diag(weights[:, k])
+        PHIk = V.T @ Wk
+        for j in range(nJ):
+            cols = slice(k * frameLen, (k + 1) * frameLen)
+            rows = slice(j * (order + 1), (j + 1) * (order + 1))
+            P[rows, cols] = H[j, k] * PHIk
+    
+    # Solve for M
+    M = np.linalg.solve(Q, P)
+    
+    if debug:
+        diff1 = P @ Ytest.flatten() - Q @ Atest.flatten()
+        diff2 = Atest.flatten() - M @ Ytest.flatten()
+        print("Debug differences:", diff1, diff2)
+    
+    isRowNeeded = np.zeros((order + 1) * nJ, dtype=bool)
+    isRowNeeded[::order + 1] = True
+    M2 = M[isRowNeeded, :]
+    
+    # Generate M3
+    M3 = []
+    for j in range(nJ):
+        M3J = np.zeros((frameLen, nK))
+        for k in range(nK):
+            kInd = slice(k * frameLen, (k + 1) * frameLen)
+            M3J[:, k] = M2[j, kInd]
+        M3.append(M3J)
+    
+    return M3, P, Q
+
+def sgolaymmfilt(Y, order, frameLen, observermatrix, weights):
+    """
+    Implements Savitzky-Golay Filter with Measurement Model.
+    
+    Parameters:
+        Y (ndarray): Data of shape (n, k), where there are k measurements.
+        order (int): Order of the polynomial fitting.
+        frameLen (int): Number of samples in each frame (must be odd and > order).
+        observermatrix (ndarray): Measurement matrix, size (nJ, nK).
+        weights (ndarray): Weighting for least squares, size (frameLen, nK).
+        
+    Returns:
+        X (ndarray): Estimate of states such that Y_est = X @ observermatrix.
+        Y_est (ndarray): Estimate of underlying 'measurements', Y_est = X @ observermatrix.
+    """
+    # Get the filter
+    M = sgolaymm(order, frameLen, observermatrix, weights)
+    
+    # Initialize X
+    n_samples, n_measurements = Y.shape
+    n_states = observermatrix.shape[0]
+    X = np.zeros((n_samples, n_states))
+    
+    # Apply convolution to estimate X
+    for j in range(n_states):
+        for k in range(n_measurements):
+            X[:, j] += convolve2d(Y[:, [k]], M[j][:, [k]], mode='same').flatten()
+    
+    # If a second output is requested, calculate Y_est
+    Y_est = None
+    if observermatrix is not None:
+        Y_est = X @ observermatrix
+    
+    return X, Y_est
 
 
 def egmcorr(self, eX, eY, sampleFreq, tWindowWidth, tMaxLag):

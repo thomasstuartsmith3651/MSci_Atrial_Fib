@@ -178,7 +178,7 @@ v_guess = A.guessVelocity_LSQ(0, 1, 5, peak_num)
 
 #%%
 
-data = "test_gaussian_data_45.xlsx"
+data = "test_gaussian_data_60.xlsx"
 
 peak_num = 0
 v_min = 0.35
@@ -286,4 +286,3 @@ plt.xlabel("Angle (degrees)")
 plt.ylabel("Velocity (m/s)")
 plt.title("Gaussian wave travelling at 0.4 m/s with frequency of 50 Hz")
 plt.legend()
-

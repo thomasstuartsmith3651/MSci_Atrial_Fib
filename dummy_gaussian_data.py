@@ -249,11 +249,132 @@ if __name__ == "__main__":
     # Show the animation
     plt.show()
 
+#%%
 
+#moving electrode positions
+
+def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width):
+    """
+    Calculate the amplitude of multiple Gaussian pulses in 2D at given (x, y) coordinates.
+
+    Parameters:
+        x (float or np.ndarray): x-coordinate(s) where amplitude is calculated.
+        y (float or np.ndarray): y-coordinate(s) where amplitude is calculated.
+        t (float): Time at which the amplitude is calculated.
+        centers (list of tuples): List of initial centers of the Gaussian pulses as [(x0, y0), ...].
+        direction (tuple): Unit vector specifying the propagation direction as (dx, dy).
+        speed (float): Speed of pulse propagation.
+        width (float): Width of the Gaussian pulses.
+
+    Returns:
+        float or np.ndarray: Amplitude of the Gaussian pulses at the specified coordinates.
+    """
+    # Normalize the direction vector
+    dx, dy = direction
+    direction_norm = np.sqrt(dx**2 + dy**2)
+    dx /= direction_norm
+    dy /= direction_norm
+
+    # Initialize the total amplitude
+    total_amplitude = np.zeros_like(x, dtype=float)
+
+    for x0, y0 in centers:
+        # Calculate the current center of each pulse
+        x_center = x0 + dx * speed * t
+        y_center = y0 + dy * speed * t
+
+        # Compute the squared distance from the pulse center
+        distance_squared = (x - x_center)**2 + (y - y_center)**2
+
+        # Add the Gaussian amplitude for this center
+        total_amplitude += np.exp(-distance_squared / (2 * width**2))
+
+    return total_amplitude
+
+
+if __name__ == "__main__":
+    # Define pulse parameters
+    angle = np.radians(80)  # Propagation direction (degrees from the horizontal)
+    propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
+    propagation_speed = 500  # Speed of the pulse (mm/s)
+    pulse_width = 0.5  # Width of the Gaussian pulses
+
+    # Define specific coordinates to store data (mm)
+    specific_coords = [
+        (0, 0), (0, 4), (0, 8), (0, 12),
+        (4, 0), (4, 4), (4, 8), (4, 12),
+        (8, 0), (8, 4), (8, 8), (8, 12),
+        (12, 0), (12, 4), (12, 8), (12, 12)
+    ]
+
+    # Generate Gaussian centers along a line perpendicular to the direction of propagation
+    num_centers = 50  # Number of Gaussian centers
+    screen_range = 12  # Range for the screen (x and y axis span)
+    initial_centers = [
+        (x * np.cos(angle + np.pi/2) - 2, x * np.sin(angle + np.pi/2) - 2)  # Place Gaussians in a line perpendicular to propagation
+        for x in np.linspace(-screen_range - 3, screen_range + 3, num_centers)
+    ]
+
+    # Sampling frequencies
+    signal_sampling_frequency = 2034.5  # Hz
+    position_sampling_frequency = 101.725  # Hz
+    position_update_interval = int(signal_sampling_frequency / position_sampling_frequency)  # Update positions every 20 time steps
+
+    # Store the amplitude values for the specific coordinates
+    stored_data = []
+    random_coords_x = []
+    random_coords_y = []
+
+    # Time for which we want to store the data
+    total_time = 1  # Total simulation time in seconds
+    total_signal_samples = int(total_time * signal_sampling_frequency)
+    
+    # Initialize randomized coordinates
+    randomized_coords = specific_coords
+
+    for t in range(total_signal_samples):
+        time = t / signal_sampling_frequency  # Time for this signal sample
+
+        # Update randomized positions at the lower position sampling frequency
+        if t % position_update_interval == 0:
+            randomized_coords = [
+                (
+                    x + np.random.uniform(-0.5, 0.5),  # Random variation for x-coordinate (scaled by 0.7)
+                    y + np.random.uniform(-0.5, 0.5)   # Random variation for y-coordinate (scaled by 0.3)
+                )
+                for x, y in specific_coords
+            ]
+            random_coords_x.append([coord[0] for coord in randomized_coords])
+            random_coords_y.append([coord[1] for coord in randomized_coords])
+
+        amplitude = gaussian_pulse_amplitude(
+            np.array([coord[0] for coord in randomized_coords]),
+            np.array([coord[1] for coord in randomized_coords]),
+            time,
+            initial_centers,
+            propagation_direction,
+            propagation_speed,
+            pulse_width
+        )
+        # Store the data at this time step
+        stored_data.append(amplitude)
+
+    # Convert stored data to a data frame for easy manipulation
+    stored_data = np.array(stored_data)
+    data_df = pd.DataFrame(stored_data)
+
+    # Convert randomized coordinates into separate DataFrames for x and y
+    random_coords_x_df = pd.DataFrame(random_coords_x, columns=[f"Electrode_{i}_x" for i in range(len(specific_coords))])
+    random_coords_y_df = pd.DataFrame(random_coords_y, columns=[f"Electrode_{i}_y" for i in range(len(specific_coords))])
 
 #%%
-path = '/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/Year 4/MSci Project/code/MSci_Atrial_Fib/test_gaussian_data_BACKUP.xlsx'
-data_df.to_excel(path, sheet_name="Signals")
+
+path1 = '/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/Year 4/MSci Project/code/MSci_Atrial_Fib/test_gaussian_data_BACKUP.xlsx'
+path2 = '/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/Year 4/MSci Project/code/MSci_Atrial_Fib/test_gaussian_x_data_BACKUP.xlsx'
+path3 = '/Users/candace_chung/Desktop/Candace Chung Files/ICL/Academics/Year 4/MSci Project/code/MSci_Atrial_Fib/test_gaussian_y_data_BACKUP.xlsx'
+data_df.to_excel(path1, sheet_name="Signals")
+random_coords_x_df.to_excel(path2, sheet_name = "X")
+random_coords_y_df.to_excel(path3, sheet_name = "Y")
 
 #%%
 # #%%
