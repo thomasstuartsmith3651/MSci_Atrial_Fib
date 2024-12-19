@@ -280,10 +280,11 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
         best_t_delay, best_i_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
         
-        if best_i_delay > 0:
+        # DISTANCE CORRECTION
+        if best_i_delay > 0: # start from electrode 1 and end at electrode 2, so shift electrode 2 position
             new_d_vector = self.coord[ele_num2, ind_shift + best_i_delay, :] - self.coord[ele_num1, ind_shift, :]
             new_d_mag = np.linalg.norm(new_d_vector)
-        elif best_i_delay < 0:
+        elif best_i_delay < 0: # start from electrode 2 and end at electrode 1, so shift electrode 1 position
             new_d_vector = self.coord[ele_num2, ind_shift, :] - self.coord[ele_num1, ind_shift + abs(best_i_delay), :]
             new_d_mag = np.linalg.norm(new_d_vector)
         
