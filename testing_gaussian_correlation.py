@@ -16,6 +16,7 @@ from scipy.signal import correlate
 import scipy.signal as sps
 import matplotlib.pyplot as plt
 from test_cross_correlation_modules import *
+from test_cross_correlation_modules_MOVING import *
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from mpl_toolkits.mplot3d import Axes3D
@@ -286,3 +287,286 @@ plt.xlabel("Angle (degrees)")
 plt.ylabel("Velocity (m/s)")
 plt.title("Gaussian wave travelling at 0.4 m/s with frequency of 50 Hz")
 plt.legend()
+
+#%%
+
+#MOVING ELECTRODES
+data = "test_gaussian_data_10_1200_MOVING.xlsx"
+L = LoadDataExcel_MOVING(data)
+C = L.coordinates()
+peak_num = 0
+v_min = 0.35
+v_max = 8.5
+corr_threshold = 0.75
+window_length = 50
+A = AnalyseDataExcel_MOVING(data, v_min, v_max, window_length, corr_threshold)
+# Your existing code to compute vectors and origins
+vectors, origins = A.velocityGuessMap(peak_num)
+
+x_origins = [x[0] for x in origins]
+y_origins = [x[1] for x in origins]
+x_vectors = [x[0] for x in vectors]
+y_vectors = [x[1] for x in vectors]
+
+# Calculate vector magnitudes
+magnitudes = [np.sqrt(vx**2 + vy**2) for vx, vy in vectors]
+
+# Define electrode positions
+
+# Get the time index corresponding to the peak
+peak_index = A.findEGMPeak(L.ele_signals()[0])[peak_num]
+
+# Extract the x and y positions at the time of the peak
+electrode_x = C[:, peak_index, 0]
+electrode_y = C[:, peak_index, 1]
+
+# Grid lines
+plt.plot(
+    [electrode_x[0], electrode_x[1]],
+    [electrode_y[0], electrode_y[1]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[0], electrode_x[4]],
+    [electrode_y[0], electrode_y[4]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[1], electrode_x[2]],
+    [electrode_y[1], electrode_y[2]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[1], electrode_x[5]],
+    [electrode_y[1], electrode_y[5]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[2], electrode_x[3]],
+    [electrode_y[2], electrode_y[3]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[2], electrode_x[6]],
+    [electrode_y[2], electrode_y[6]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[4], electrode_x[5]],
+    [electrode_y[4], electrode_y[5]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[4], electrode_x[8]],
+    [electrode_y[4], electrode_y[8]],
+    color="black",
+    linewidth=0.5,
+)
+
+
+plt.plot(
+    [electrode_x[5], electrode_x[6]],
+    [electrode_y[5], electrode_y[6]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[5], electrode_x[9]],
+    [electrode_y[5], electrode_y[9]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[6], electrode_x[7]],
+    [electrode_y[6], electrode_y[7]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[6], electrode_x[10]],
+    [electrode_y[6], electrode_y[10]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[8], electrode_x[9]],
+    [electrode_y[8], electrode_y[9]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[8], electrode_x[12]],
+    [electrode_y[8], electrode_y[12]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[9], electrode_x[10]],
+    [electrode_y[9], electrode_y[10]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[9], electrode_x[13]],
+    [electrode_y[9], electrode_y[13]],
+    color="black",
+    linewidth=0.5,
+)
+
+
+plt.plot(
+    [electrode_x[10], electrode_x[11]],
+    [electrode_y[10], electrode_y[11]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[10], electrode_x[14]],
+    [electrode_y[10], electrode_y[14]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[3], electrode_x[7]],
+    [electrode_y[3], electrode_y[7]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[7], electrode_x[11]],
+    [electrode_y[7], electrode_y[11]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[11], electrode_x[15]],
+    [electrode_y[11], electrode_y[15]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[12], electrode_x[13]],
+    [electrode_y[12], electrode_y[13]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[13], electrode_x[14]],
+    [electrode_y[13], electrode_y[14]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[14], electrode_x[15]],
+    [electrode_y[14], electrode_y[15]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[1], electrode_x[4]],
+    [electrode_y[1], electrode_y[4]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[2], electrode_x[5]],
+    [electrode_y[2], electrode_y[5]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[5], electrode_x[8]],
+    [electrode_y[5], electrode_y[8]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[3], electrode_x[6]],
+    [electrode_y[3], electrode_y[6]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[6], electrode_x[9]],
+    [electrode_y[6], electrode_y[9]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[9], electrode_x[12]],
+    [electrode_y[9], electrode_y[12]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[7], electrode_x[10]],
+    [electrode_y[7], electrode_y[10]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[10], electrode_x[13]],
+    [electrode_y[10], electrode_y[13]],
+    color="black",
+    linewidth=0.5,
+)
+
+plt.plot(
+    [electrode_x[11], electrode_x[14]],
+    [electrode_y[11], electrode_y[14]],
+    color="black",
+    linewidth=0.5,
+)
+
+# Plot electrodes and vectors
+plt.plot(electrode_x, electrode_y, "o", label="Electrodes", color="red")
+quiver = plt.quiver(x_origins, y_origins, x_vectors, y_vectors, color="blue")
+
+# Annotate magnitudes near each vector
+for x, y, mag in zip(x_origins, y_origins, magnitudes):
+    plt.text(x, y, f"{mag:.4f}", fontsize=8, color="black", ha='right', va='bottom')
+
+# Add grid and axes
+#plt.axhline(0, color='black', linewidth=0.5)
+#plt.axvline(0, color='black', linewidth=0.5)
+plt.grid()
+plt.title("Vector plot (velocity vectors in m/s)")
+plt.xlabel("X position (mm)")
+plt.ylabel("Y position (mm)")
+plt.show()

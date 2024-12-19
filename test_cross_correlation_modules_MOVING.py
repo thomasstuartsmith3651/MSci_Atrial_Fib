@@ -123,18 +123,24 @@ class LoadDataExcel_MOVING:
 
 #%%
 
+"""
+THIS MAY NOT WORK, SO MAY NEED TO CHANGE LATER
+"""
+
 class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform on data
     def __init__(self, fileName, minVelocity, maxVelocity, window_length, corr_threshold): #velocity in mm/s angles in radians
         LoadDataExcel_MOVING.__init__(self, fileName)
         
         self.sigSampFreq = 2034.5 #units of Hz
+        self.posSampFreq = 101.725 #units of Hz
         self.sigSampInterval = 1/self.sigSampFreq
+        self.posSampInterval = 1/self.posSampFreq
         self.window_length = window_length #number of indices
         self.minVelocity = minVelocity
         self.maxVelocity = maxVelocity
         self.corr_threshold = corr_threshold #percentage of maximum RXY that the RXY used to compute time delay after windowing must have for the time delay to be valid
-    
-    def findEGMPeak(self, e1, height_threshold = 0.9, distance_threshold = 1): #change to 300 for real data
+        
+    def findEGMPeak(self, e1, height_threshold = 0.7, distance_threshold = 300): #change to 300 for real data
         """
         This function finds the peaks in the EGM signal and outputs indices to apply the kaiser window
         Input:
@@ -157,6 +163,7 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         Input:
         - e1 = time series for first electrode
         - e2 = time series for second electrode
+        - ind_shift = indices to apply kaiser window so it's centred around the peaks
         
         Output: 
         - e1_windowed = 1D array of windowed time series for first electrode
@@ -240,8 +247,9 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         if max_RXY < RXY_threshold:
             best_timeDelay = np.inf
         else:
-            best_timeDelay = best_indexDelay/self.sigSampFreq
-        return best_timeDelay, max_RXY
+            best_timeDelay = best_indexDelay * self.sigSampInterval
+        #print(best_timeDelay, best_indexDelay)
+        return best_timeDelay, best_indexDelay, max_RXY
     
     def electrodePairVelocity(self, ele_num1, ele_num2, ind_shift):
         """
@@ -249,7 +257,7 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         Input:
         - ele_num1 = number for first electrode (0 - 15)
         - ele_num2 = number for second electrode (0 - 15)
-        - maxVelocity = maximum allowable velocity
+        - ind_shift = index for time at which the velocity is calculated
         
         Output: velocity vector
         - Row 1 = x-component of velocity
@@ -257,9 +265,9 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         
         Can modify function to include z-coordinate later
         """
-        d_vector = self.coord[ele_num2] - self.coord[ele_num1]
+        d_vector = self.coord[ele_num2, ind_shift, :] - self.coord[ele_num1, ind_shift, :]
         d_mag = np.linalg.norm(d_vector)
-
+        #print("ind_shift", ind_shift, "old dist", d_mag, d_vector/d_mag)
         minTimeDelay = d_mag * 0.001 / self.maxVelocity
         maxTimeDelay = d_mag * 0.001 / self.minVelocity
         
@@ -270,13 +278,20 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
 
         RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
-        best_t_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
+        best_t_delay, best_i_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
         
-        speed = d_mag/best_t_delay
-        direction_unit_vector = d_vector/d_mag
-
+        if best_i_delay > 0:
+            new_d_vector = self.coord[ele_num2, ind_shift + best_i_delay, :] - self.coord[ele_num1, ind_shift, :]
+            new_d_mag = np.linalg.norm(new_d_vector)
+        elif best_i_delay < 0:
+            new_d_vector = self.coord[ele_num2, ind_shift, :] - self.coord[ele_num1, ind_shift + abs(best_i_delay), :]
+            new_d_mag = np.linalg.norm(new_d_vector)
+        
+        speed = new_d_mag/best_t_delay
+        direction_unit_vector = new_d_vector/new_d_mag
+        #print("dist", new_d_mag, direction_unit_vector)
         velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
-
+        #print(velocity_vector)
         return velocity_vector, max_RXY
     
     def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, peak_num):
@@ -287,11 +302,8 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         - ref_ele_num = number for reference electrode (0 - 15)
         - ele_num1 = number for first electrode
         - ele_num2 = number for second electrode (ele_num2 must be above ele_num1)
-        - minVelocity = minimum allowable velocity
-        - maxVelocity = maximum allowable velocity
         - peak_num = which peak to window the time-series signal around
-        - corr_threshold = minimum correlation threshold for acceptable time delays
-    
+
         Output: velocity vector estimate
         - Row 1 = x-component of velocity
         - Row 2 = y-component of velocity
@@ -299,9 +311,11 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         e1 = self.signals[ref_ele_num]
         ind_shifts = self.findEGMPeak(e1)
         ind_shift = ind_shifts[peak_num]
+        # THIS IS NOT HERE FOR STATIONARY ELECTRODES
+        ref_origin = self.coord[ref_ele_num, ind_shift, :]
         velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, ind_shift)
         velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, ind_shift)
-        
+        #print(velocity1, velocity2)
         wavefront_vector = velocity2 - velocity1
         norm = np.linalg.norm(wavefront_vector)
         wavefront_unit_vector = (1 / norm) * wavefront_vector
@@ -329,34 +343,51 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
             m.limits["v_mag_guess"] = (-self.maxVelocity, self.maxVelocity)  # Velocity limits (-v_max to v_max m/s)
             m.errordef = Minuit.LEAST_SQUARES  # Least-squares error definition
             m.migrad()
-
             v_mag_guess = m.values["v_mag_guess"]
 
             v_guess = v_mag_guess * guess_unit_vector
     
-            print("angle", np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
-        return v_guess
+            print((np.degrees(np.arccos(guess_unit_vector[0])) + np.degrees(np.arcsin(guess_unit_vector[1])))/2)
+        return v_guess, ref_origin #ref_origin IS NOT AN OUTPUT FOR STATIONARY ELECTRODES
     
     def velocityGuessMap(self, peak_num):
         origins = []
         velocity_vectors = []
         for ref_ele_num in range(3):
             for i in range(3):
-                ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
-                origins.append(ref_origin)
+                # FOR STATIONARY ELECTRODES
+                #ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
+                #origins.append(ref_origin)
                 
                 ele_1 = ref_ele_num + 4
                 ele_2 = ref_ele_num + 1
-                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
+                
+                # FOR STATIONARY ELECTRODES
+                #v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
+                
+                #FOR MOVING ELECTRODES
+                v_guess, ref_origin = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
+                vector_origin = ref_origin + np.full(2, 1)
+                origins.append(vector_origin)
                 
                 ref_ele_num += 5
-                ref_origin = self.coord[ref_ele_num] - np.full(2, 1)
-                origins.append(ref_origin)
+                
+                # FOR STATIONARY ELECTRODES
+                #ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
+                #origins.append(ref_origin)
                 
                 ele_1 = ref_ele_num - 4
                 ele_2 = ref_ele_num - 1 
-                v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
+
+                # FOR STATIONARY ELECTRODES
+                #v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
+                
+                #FOR MOVING ELECTRODES
+                v_guess, ref_origin = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
+                vector_origin = ref_origin - np.full(2, 1)
+                origins.append(vector_origin)
+                
                 ref_ele_num -= 1
         return velocity_vectors, origins

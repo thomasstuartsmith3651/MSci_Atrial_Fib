@@ -251,7 +251,7 @@ if __name__ == "__main__":
 
 #%%
 
-#moving electrode positions
+#SINGLE GAUSSIAN WAVE PULSE moving electrode positions
 
 def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width):
     """
@@ -294,9 +294,9 @@ def gaussian_pulse_amplitude(x, y, t, centers, direction, speed, width):
 
 if __name__ == "__main__":
     # Define pulse parameters
-    angle = np.radians(80)  # Propagation direction (degrees from the horizontal)
+    angle = np.radians(10)  # Propagation direction (degrees from the horizontal)
     propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
-    propagation_speed = 500  # Speed of the pulse (mm/s)
+    propagation_speed = 1200  # Speed of the pulse (mm/s)
     pulse_width = 0.5  # Width of the Gaussian pulses
 
     # Define specific coordinates to store data (mm)
