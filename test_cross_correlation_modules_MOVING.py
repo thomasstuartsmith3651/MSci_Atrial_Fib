@@ -251,9 +251,10 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         #print(best_timeDelay, best_indexDelay)
         return best_timeDelay, best_indexDelay, max_RXY
     
-    def electrodePairVelocity(self, ele_num1, ele_num2, ind_shift):
+    def electrodePairVelocity_ADJUSTED(self, ele_num1, ele_num2, ind_shift):
         """
         This function creates a vector for wave velocity between pair of electrodes in m/s
+        Distances are calculated using the position of the destination electrode is at the final time (initial time + time delay)
         Input:
         - ele_num1 = number for first electrode (0 - 15)
         - ele_num2 = number for second electrode (0 - 15)
@@ -295,6 +296,42 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         #print(velocity_vector)
         return velocity_vector, max_RXY
     
+    def electrodePairVelocity_ORIGINAL(self, ele_num1, ele_num2, ind_shift):
+        """
+        This function creates a vector for wave velocity between pair of electrodes in m/s
+        This is the original version of the electrodePairVelocity function
+        Input:
+        - ele_num1 = number for first electrode (0 - 15)
+        - ele_num2 = number for second electrode (0 - 15)
+        - ind_shift = index for time at which the velocity is calculated
+        
+        Output: velocity vector
+        - Row 1 = x-component of velocity
+        - Row 2 = y-component of velocity
+        
+        Can modify function to include z-coordinate later
+        """
+        d_vector = self.coord[ele_num2, ind_shift, :] - self.coord[ele_num1, ind_shift, :]
+        d_mag = np.linalg.norm(d_vector)
+        #print("ind_shift", ind_shift, "old dist", d_mag, d_vector/d_mag)
+        minTimeDelay = d_mag * 0.001 / self.maxVelocity
+        maxTimeDelay = d_mag * 0.001 / self.minVelocity
+        
+        e1 = self.signals[ele_num1]
+        e2 = self.signals[ele_num2]
+        
+        # NEED TO WINDOW SIGNAL
+        e1_w, e2_w = self.windowSignal(e1, e2, ind_shift) # DO FIRST PEAK FOR NOW
+
+        RXY, ind_delays = self.simpleCorrelate(e1_w, e2_w)
+        best_t_delay, best_i_delay, max_RXY = self.maxRXY_timeDelay(RXY, ind_delays, minTimeDelay, maxTimeDelay)
+        
+        speed = d_mag/best_t_delay
+        direction_unit_vector = d_vector/d_mag
+        velocity_vector = speed * direction_unit_vector * 0.001  #convert from mm/s to m/s
+        #print(velocity_vector)
+        return velocity_vector, max_RXY
+    
     def guessVelocity_LSQ(self, ref_ele_num, ele_num1, ele_num2, peak_num):
         """
         This function combines two vectors measured from two electrodes with respect to a reference electrode
@@ -314,9 +351,15 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
         ind_shift = ind_shifts[peak_num]
         # THIS IS NOT HERE FOR STATIONARY ELECTRODES
         ref_origin = self.coord[ref_ele_num, ind_shift, :]
-        velocity1, max_RXY1 = self.electrodePairVelocity(ref_ele_num, ele_num1, ind_shift)
-        velocity2, max_RXY2 = self.electrodePairVelocity(ref_ele_num, ele_num2, ind_shift)
-        #print(velocity1, velocity2)
+        
+        # WITHOUT DISTANCE ADJUSTMENT
+        # velocity1, max_RXY1 = self.electrodePairVelocity_ORIGINAL(ref_ele_num, ele_num1, ind_shift)
+        # velocity2, max_RXY2 = self.electrodePairVelocity_ORIGINAL(ref_ele_num, ele_num2, ind_shift)
+        
+        # WITH DISTANCE ADJUSTMENT
+        velocity1, max_RXY1 = self.electrodePairVelocity_ADJUSTED(ref_ele_num, ele_num1, ind_shift)
+        velocity2, max_RXY2 = self.electrodePairVelocity_ADJUSTED(ref_ele_num, ele_num2, ind_shift)
+
         wavefront_vector = velocity2 - velocity1
         norm = np.linalg.norm(wavefront_vector)
         wavefront_unit_vector = (1 / norm) * wavefront_vector
@@ -347,7 +390,8 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
             v_mag_guess = m.values["v_mag_guess"]
 
             v_guess = v_mag_guess * guess_unit_vector
-    
+            
+            # NOTE: DO NOT USE AVERAGE WHEN DOING OTHER DIRECTIONS, IT WILL BE WRONG, SO JUST DISPLAY THE TWO ANGLES FOR THAT
             print((np.degrees(np.arccos(guess_unit_vector[0])) + np.degrees(np.arcsin(guess_unit_vector[1])))/2)
         return v_guess, ref_origin #ref_origin IS NOT AN OUTPUT FOR STATIONARY ELECTRODES
     

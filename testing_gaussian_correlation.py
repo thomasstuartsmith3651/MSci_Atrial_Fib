@@ -171,15 +171,15 @@ print(best_timeDelay)
 
 #print(ele_1, ele_2, velocity_vector, max_RXY, best_timeDelay)
 
-velocity_vector, _ = A.electrodePairVelocity(2, 3, ind_shifts[peak_num])
-velocity_vector2, _ = A.electrodePairVelocity(2, 6, ind_shifts[peak_num])
+velocity_vector, _ = A.electrodePairVelocity_ORIGINAL(2, 3, ind_shifts[peak_num])
+velocity_vector2, _ = A.electrodePairVelocity_ORIGINAL(2, 6, ind_shifts[peak_num])
 print("CHECK", velocity_vector, velocity_vector2)
 #%%
 v_guess = A.guessVelocity_LSQ(0, 1, 5, peak_num)
 
 #%%
 
-data = "test_gaussian_data_60.xlsx"
+data = "test_gaussian_data_20_400_50Hz.xlsx"
 
 peak_num = 0
 v_min = 0.35
