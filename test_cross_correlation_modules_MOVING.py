@@ -248,7 +248,6 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
             best_timeDelay = np.inf
         else:
             best_timeDelay = best_indexDelay * self.sigSampInterval
-        #print(best_timeDelay, best_indexDelay)
         return best_timeDelay, best_indexDelay, max_RXY
     
     def electrodePairVelocity_ADJUSTED(self, ele_num1, ele_num2, ind_shift):
@@ -392,43 +391,27 @@ class AnalyseDataExcel_MOVING(LoadDataExcel_MOVING): #perform wavelet transform 
             v_guess = v_mag_guess * guess_unit_vector
             
             # NOTE: DO NOT USE AVERAGE WHEN DOING OTHER DIRECTIONS, IT WILL BE WRONG, SO JUST DISPLAY THE TWO ANGLES FOR THAT
-            print((np.degrees(np.arccos(guess_unit_vector[0])) + np.degrees(np.arcsin(guess_unit_vector[1])))/2)
-        return v_guess, ref_origin #ref_origin IS NOT AN OUTPUT FOR STATIONARY ELECTRODES
+            print(np.degrees(np.arccos(guess_unit_vector[0])), np.degrees(np.arcsin(guess_unit_vector[1])))
+        return v_guess, ref_origin
     
     def velocityGuessMap(self, peak_num):
         origins = []
         velocity_vectors = []
         for ref_ele_num in range(3):
             for i in range(3):
-                # FOR STATIONARY ELECTRODES
-                #ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
-                #origins.append(ref_origin)
-                
                 ele_1 = ref_ele_num + 4
                 ele_2 = ref_ele_num + 1
-                
-                # FOR STATIONARY ELECTRODES
-                #v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
-                
-                #FOR MOVING ELECTRODES
+
                 v_guess, ref_origin = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
                 vector_origin = ref_origin + np.full(2, 1)
                 origins.append(vector_origin)
                 
                 ref_ele_num += 5
-                
-                # FOR STATIONARY ELECTRODES
-                #ref_origin = self.coord[ref_ele_num] + np.full(2, 1)
-                #origins.append(ref_origin)
-                
+
                 ele_1 = ref_ele_num - 4
                 ele_2 = ref_ele_num - 1 
 
-                # FOR STATIONARY ELECTRODES
-                #v_guess = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
-                
-                #FOR MOVING ELECTRODES
                 v_guess, ref_origin = self.guessVelocity_LSQ(ref_ele_num, ele_1, ele_2, peak_num)
                 velocity_vectors.append(v_guess)
                 vector_origin = ref_origin - np.full(2, 1)

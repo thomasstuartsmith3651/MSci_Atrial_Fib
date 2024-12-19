@@ -291,7 +291,7 @@ plt.legend()
 #%%
 
 #MOVING ELECTRODES
-data = "test_gaussian_data_10_1200_MOVING.xlsx"
+data = "test_gaussian_data_80_500_MOVING.xlsx"
 L = LoadDataExcel_MOVING(data)
 C = L.coordinates()
 peak_num = 0
