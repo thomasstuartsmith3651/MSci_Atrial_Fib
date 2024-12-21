@@ -275,72 +275,72 @@ def generate_data_train_wave_moving_electrode(angle, propagation_speed, pulse_fr
 
 #%%
 
-def animate_gaussian_wave_train(angle, propagation_speed, pulse_frequency):
-    # Define pulse parameters
-    angle = np.radians(angle)  # Propagation direction (degrees from the horizontal)
-    propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
-    pulse_width = 0.5  # Width of the Gaussian pulses
-    pulse_interval = 1 / pulse_frequency  # Time interval between pulses
+# def animate_gaussian_wave_train(angle, propagation_speed, pulse_frequency):
+#     # Define pulse parameters
+#     angle = np.radians(angle)  # Propagation direction (degrees from the horizontal)
+#     propagation_direction = (np.cos(angle), np.sin(angle))  # Direction of propagation
+#     pulse_width = 0.5  # Width of the Gaussian pulses
+#     pulse_interval = 1 / pulse_frequency  # Time interval between pulses
 
-    # Generate Gaussian centers along a line perpendicular to the direction of propagation
-    num_centers = 50  # Number of Gaussian centers
-    screen_range = 12  # Range for the screen (x and y axis span)
-    initial_centers = [
-        (x * np.cos(angle + np.pi / 2) - 2, x * np.sin(angle + np.pi / 2) - 2)  # Centers in a line perpendicular to propagation
-        for x in np.linspace(-screen_range - 3, screen_range + 3, num_centers)
-    ]
+#     # Generate Gaussian centers along a line perpendicular to the direction of propagation
+#     num_centers = 50  # Number of Gaussian centers
+#     screen_range = 12  # Range for the screen (x and y axis span)
+#     initial_centers = [
+#         (x * np.cos(angle + np.pi / 2) - 2, x * np.sin(angle + np.pi / 2) - 2)  # Centers in a line perpendicular to propagation
+#         for x in np.linspace(-screen_range - 3, screen_range + 3, num_centers)
+#     ]
 
-    # Define coordinates to evaluate the amplitude for animation
-    x_coords = np.linspace(0, 12, 200)  # Grid for x-coordinates
-    y_coords = np.linspace(0, 12, 200)  # Grid for y-coordinates
-    X, Y = np.meshgrid(x_coords, y_coords)
+#     # Define coordinates to evaluate the amplitude for animation
+#     x_coords = np.linspace(0, 12, 200)  # Grid for x-coordinates
+#     y_coords = np.linspace(0, 12, 200)  # Grid for y-coordinates
+#     X, Y = np.meshgrid(x_coords, y_coords)
 
-    # Setup the figure and axis for animation
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.set_xlim(0, 12)
-    ax.set_ylim(0, 12)
-    ax.set_xlabel("x (mm)")
-    ax.set_ylabel("y (mm)")
-    ax.set_title("Gaussian Plane Wave Propagation")
+#     # Setup the figure and axis for animation
+#     fig, ax = plt.subplots(figsize=(8, 6))
+#     ax.set_xlim(0, 12)
+#     ax.set_ylim(0, 12)
+#     ax.set_xlabel("x (mm)")
+#     ax.set_ylabel("y (mm)")
+#     ax.set_title("Gaussian Plane Wave Propagation")
 
-    # Compute the initial amplitude
-    amplitude = gaussian_pulse_amplitude_TRAIN(X, Y, 0, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
-    contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
-    cbar = plt.colorbar(contour, ax=ax, label="Amplitude")
+#     # Compute the initial amplitude
+#     amplitude = gaussian_pulse_amplitude_TRAIN(X, Y, 0, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+#     contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+#     cbar = plt.colorbar(contour, ax=ax, label="Amplitude")
 
-    # Time settings
-    sampling_frequency = 2034.5  # Sampling frequency (Hz)
-    time_increment = 1 / sampling_frequency  # Time step size
-    time_steps = int(1 / time_increment)  # Simulate 1 second of wave propagation
+#     # Time settings
+#     sampling_frequency = 2034.5  # Sampling frequency (Hz)
+#     time_increment = 1 / sampling_frequency  # Time step size
+#     time_steps = int(1 / time_increment)  # Simulate 1 second of wave propagation
 
-    # Update function for animation
-    def update(frame):
-        time = frame * time_increment  # Current time for animation
-        amplitude = gaussian_pulse_amplitude_TRAIN(X, Y, time, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
-        ax.clear()  # Clear previous plot
-        ax.set_xlim(0, 12)
-        ax.set_ylim(0, 12)
-        ax.set_xlabel("x (mm)")
-        ax.set_ylabel("y (mm)")
-        ax.set_title("Gaussian Plane Wave Propagation")
-        contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
-        return contour.collections
+#     # Update function for animation
+#     def update(frame):
+#         time = frame * time_increment  # Current time for animation
+#         amplitude = gaussian_pulse_amplitude_TRAIN(X, Y, time, initial_centers, propagation_direction, propagation_speed, pulse_width, pulse_interval)
+#         ax.clear()  # Clear previous plot
+#         ax.set_xlim(0, 12)
+#         ax.set_ylim(0, 12)
+#         ax.set_xlabel("x (mm)")
+#         ax.set_ylabel("y (mm)")
+#         ax.set_title("Gaussian Plane Wave Propagation")
+#         contour = ax.contourf(X, Y, amplitude, levels=50, cmap="viridis")
+#         return contour.collections
 
-    # Create the animation
-    anim = FuncAnimation(fig, update, frames=time_steps, interval=1, blit=False)
+#     # Create the animation
+#     anim = FuncAnimation(fig, update, frames=time_steps, interval=1, blit=False)
 
-    # Prevent the animation object from being garbage collected
-    return anim
+#     # Prevent the animation object from being garbage collected
+#     return anim
 
-if __name__ == "__main__":
-    # Define pulse parameters
-    angle = 90  # Propagation direction (degrees from the horizontal)
-    propagation_speed = 400  # Speed of the pulse (mm/s)
-    pulse_frequency = 50  # Frequency of the Gaussian pulses (Hz)
+# if __name__ == "__main__":
+#     # Define pulse parameters
+#     angle = 90  # Propagation direction (degrees from the horizontal)
+#     propagation_speed = 400  # Speed of the pulse (mm/s)
+#     pulse_frequency = 50  # Frequency of the Gaussian pulses (Hz)
 
-    # Run the animation
-    anim = animate_gaussian_wave_train(angle, propagation_speed, pulse_frequency)  # Store the animation object
-    plt.show()  # Ensure the animation persists until shown
+#     # Run the animation
+#     anim = animate_gaussian_wave_train(angle, propagation_speed, pulse_frequency)  # Store the animation object
+#     plt.show()  # Ensure the animation persists until shown
 
 #%%
 

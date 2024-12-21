@@ -294,7 +294,7 @@ plt.legend()
 
 #FUNCTIONS TO TEST GAUSSIAN WAVE WITH MOVING ELECTRODES
 
-def test_single_wave_moving_electrode(angle, propagation_speed, max_variation, v_min = 0.35, v_max = 8.5, peak_num = 0, corr_threshold = 0.75, window_length = 50):
+def test_single_wave_moving_electrode(angle, propagation_speed, max_variation, target_mag, target_theta, v_min = 0.35, v_max = 8.5, peak_num = 0, corr_threshold = 0.75, window_length = 50):
     data = generate_data_single_wave_moving_electrode(angle, propagation_speed, max_variation)
     A = AnalyseDataExcel_MOVING(data, v_min, v_max, window_length, corr_threshold)
     S = A.ele_signals()
@@ -308,8 +308,6 @@ def test_single_wave_moving_electrode(angle, propagation_speed, max_variation, v
     tot_theta = 0
     var_mag = 0
     var_theta = 0
-    target_mag = 1.5
-    target_theta = 80
     N = len(vectors)
     for vx, vy in vectors:
         mag = np.sqrt(vx**2 + vy**2)
@@ -597,7 +595,7 @@ def test_single_wave_moving_electrode(angle, propagation_speed, max_variation, v
     plt.show()
     return vectors, avg_mag, avg_theta, stddev_mag, stddev_theta
 
-def test_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, max_variation, v_min = 0.35, v_max = 8.5, peak_num = 0, corr_threshold = 0.75, window_length = 50):
+def test_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, max_variation, target_mag, target_theta, v_min = 0.35, v_max = 8.5, peak_num = 0, corr_threshold = 0.75, window_length = 50):
     data = generate_data_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, max_variation)
     A = AnalyseDataExcel_MOVING(data, v_min, v_max, window_length, corr_threshold)
     S = A.ele_signals()
@@ -610,8 +608,6 @@ def test_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, 
     tot_theta = 0
     var_mag = 0
     var_theta = 0
-    target_mag = 1.5
-    target_theta = 80
     N = len(vectors)
     for vx, vy in vectors:
         mag = np.sqrt(vx**2 + vy**2)
@@ -902,13 +898,15 @@ def test_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, 
 #%%
 
 #TEST SINGLE GAUSSIAN WAVE WITH MOVING ELECTRODES
-
-vectors, avg_mag, avg_theta, stddev_mag, stddev_theta = test_single_wave_moving_electrode(20, 1200, 0.5)
+target_mag = 1.2
+target_theta = 20
+vectors, avg_mag, avg_theta, stddev_mag, stddev_theta = test_single_wave_moving_electrode(20, 1200, 0.5, target_mag, target_theta)
 
 
 #%%
 
 #TEST TRAIN GAUSSIAN WAVE WITH MOVING ELECTRODES
-
-vectors, avg_mag, avg_theta, stddev_mag, stddev_theta = test_train_wave_moving_electrode(20, 1200, 50, 0.5)
+target_mag = 1.2
+target_theta = 20
+vectors, avg_mag, avg_theta, stddev_mag, stddev_theta = test_train_wave_moving_electrode(20, 1200, 50, 0.5, target_mag, target_theta)
 
