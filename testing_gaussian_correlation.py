@@ -308,16 +308,14 @@ def test_single_wave_moving_electrode(angle, propagation_speed, max_variation, v
     tot_theta = 0
     var_mag = 0
     var_theta = 0
-    target_mag = 1.2
-    target_theta = 80
     N = len(vectors)
     for vx, vy in vectors:
         mag = np.sqrt(vx**2 + vy**2)
         theta = np.degrees(np.arctan2(vy, vx))
         tot_mag += mag
         tot_theta += theta
-        var_mag += (mag - target_mag)**2 / N
-        var_theta += (theta - target_theta)**2 / N
+        var_mag += (mag - propagation_speed/1000)**2 / N
+        var_theta += (theta - angle)**2 / N
     
     avg_mag = tot_mag / N
     avg_theta = tot_theta / N
@@ -610,16 +608,14 @@ def test_train_wave_moving_electrode(angle, propagation_speed, pulse_frequency, 
     tot_theta = 0
     var_mag = 0
     var_theta = 0
-    target_mag = 1.2
-    target_theta = 80
     N = len(vectors)
     for vx, vy in vectors:
         mag = np.sqrt(vx**2 + vy**2)
         theta = np.degrees(np.arctan2(vy, vx))
         tot_mag += mag
         tot_theta += theta
-        var_mag += (mag - target_mag)**2 / N
-        var_theta += (theta - target_theta)**2 / N
+        var_mag += (mag - propagation_speed/1000)**2 / N
+        var_theta += (theta - angle)**2 / N
     
     avg_mag = tot_mag / N
     avg_theta = tot_theta / N
